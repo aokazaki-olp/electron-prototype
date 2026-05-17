@@ -44,7 +44,8 @@ const createWindow = (): void => {
 
 const setupServices = async (): Promise<void> => {
   const token = process.env['GBIZ_API_TOKEN'] ?? DEV_TOKEN_FALLBACK;
-  const gbiz = createGBizInfoService(token);
+  // console をそのまま渡すと LoggerFacade が trace/debug/info/warn/error に解決してくれる
+  const gbiz = createGBizInfoService(token, console);
 
   // normalize-japanese-addresses v3 は ESM。dynamic import で main プロセスでのみ読み込む。
   const nja = await import('@geolonia/normalize-japanese-addresses');
