@@ -9,6 +9,8 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import log from 'electron-log/main';
+import { LoggerFacade } from '../libs/LoggerFacade.js';
 import { createGBizInfoService } from './GBizInfoService.js';
 import { createAddressService } from './AddressService.js';
 import { registerIpcHandlers } from './ipcHandlers.js';
@@ -44,8 +46,8 @@ const createWindow = (): void => {
 
 const setupServices = async (): Promise<void> => {
   const token = process.env['GBIZ_API_TOKEN'] ?? DEV_TOKEN_FALLBACK;
-  // console をそのまま渡すと LoggerFacade が trace/debug/info/warn/error に解決してくれる
-  const gbiz = createGBizInfoService(token, console);
+  const logger = LoggerFacade.createLogger(log) ?? undefined;
+  const gbiz = createGBizInfoService(token, logger);
 
   // normalize-japanese-addresses v3 は ESM。dynamic import で main プロセスでのみ読み込む。
   const nja = await import('@geolonia/normalize-japanese-addresses');

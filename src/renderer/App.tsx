@@ -9,6 +9,8 @@ import type { JSX } from 'react';
 import { ENDPOINTS, extractFirstAddress } from './endpoints.js';
 import type { EndpointDef, EndpointCategory, FieldDef } from './endpoints.js';
 import type { GBizChannel, NjaResult } from '../ipc/contract.js';
+import { JsonViewer } from './JsonViewer.js';
+import { ResponseTable, extractRows } from './ResponseTable.js';
 
 type FormState = Record<string, string>;
 
@@ -260,16 +262,20 @@ const App = (): JSX.Element => {
         {response != null ? (
           <>
             <h2 className="mt-4 mb-2 text-sm font-semibold text-slate-700">Response</h2>
-            <pre className="bg-slate-900 text-slate-100 text-xs p-3 rounded overflow-x-auto max-h-96">
-              {JSON.stringify(response, null, 2)}
-            </pre>
-            <AddressPanel
-              address={address}
-              onNormalize={() => void onNormalize()}
-              result={nja}
-              error={njaError}
-              loading={njaLoading}
-            />
+            {extractRows(response).rows.length > 0 ? (
+              <ResponseTable data={response} endpoint={endpoint} />
+            ) : (
+              <>
+                <JsonViewer data={response} />
+                <AddressPanel
+                  address={address}
+                  onNormalize={() => void onNormalize()}
+                  result={nja}
+                  error={njaError}
+                  loading={njaLoading}
+                />
+              </>
+            )}
           </>
         ) : null}
       </main>

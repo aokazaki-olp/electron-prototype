@@ -17,7 +17,10 @@
   },
   "dependencies": {
     "@geolonia/normalize-japanese-addresses": "^3",
-    "got": "^14"
+    "electron-log": "^5.4.4",
+    "got": "^14",
+    "react-json-view-lite": "^2.5.0",
+    "react-paginate": "^8.3.0"
   },
   "devDependencies": {
     "@types/node": "^22",
