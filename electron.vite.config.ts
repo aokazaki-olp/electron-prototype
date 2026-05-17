@@ -14,8 +14,13 @@ export default defineConfig({
   preload: {
     plugins: [externalizeDepsPlugin()],
     build: {
+      // sandbox: true な BrowserWindow では preload を CommonJS で読む必要があるため CJS で出力する
       rollupOptions: {
         input: resolve('src/preload/index.ts'),
+        output: {
+          format: 'cjs',
+          entryFileNames: '[name].cjs',
+        },
       },
     },
   },
