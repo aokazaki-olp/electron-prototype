@@ -1,0 +1,13 @@
+appId: com.example.gbizinfo-electron
+productName: gBizINFO Electron
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+win:
+  target: portable
+mac:
+  target: dir
+linux:
+  target: AppImage
