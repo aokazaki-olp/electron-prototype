@@ -9,6 +9,6 @@ import type { GBizSearchHojinParams } from '../../../ipc/contract.js';
 export const searchHojin: Plugin<unknown, {
   searchHojin(params: GBizSearchHojinParams): Promise<unknown>;
 }> = (client) => ({
-  // baseUrl 末尾が /hojin/v1 のため endpoint は '' (search はベースそのものへ GET)
-  searchHojin: (params) => client.get('', params as Record<string, unknown>),
+  // baseUrl は .../hojin/v2 (API ルート)。検索リソースはその下の /hojin。
+  searchHojin: (params) => client.get('/hojin', params as Record<string, unknown>),
 });

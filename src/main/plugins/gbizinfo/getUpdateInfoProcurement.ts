@@ -10,5 +10,5 @@ export const getUpdateInfoProcurement: Plugin<unknown, {
   getUpdateInfoProcurement(params: GBizUpdateInfoParams): Promise<unknown>;
 }> = (client) => ({
   getUpdateInfoProcurement: (params) =>
-    client.get('/updateInfo/procurement', params as Record<string, unknown>),
+    client.get('/hojin/updateInfo/procurement', params as Record<string, unknown>),
 });

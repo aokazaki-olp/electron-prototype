@@ -10,5 +10,5 @@ export const getUpdateInfoFinance: Plugin<unknown, {
   getUpdateInfoFinance(params: GBizUpdateInfoParams): Promise<unknown>;
 }> = (client) => ({
   getUpdateInfoFinance: (params) =>
-    client.get('/updateInfo/finance', params as Record<string, unknown>),
+    client.get('/hojin/updateInfo/finance', params as Record<string, unknown>),
 });

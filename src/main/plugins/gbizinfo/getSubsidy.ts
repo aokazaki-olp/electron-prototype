@@ -10,5 +10,5 @@ export const getSubsidy: Plugin<unknown, {
   getSubsidy(params: GBizGetWithPagingParams): Promise<unknown>;
 }> = (client) => ({
   getSubsidy: ({ corporate_number, ...query }) =>
-    client.get(`/${encodeURIComponent(corporate_number)}/subsidy`, query),
+    client.get(`/hojin/${encodeURIComponent(corporate_number)}/subsidy`, query),
 });

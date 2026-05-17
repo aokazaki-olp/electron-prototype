@@ -10,5 +10,5 @@ export const getUpdateInfoPatent: Plugin<unknown, {
   getUpdateInfoPatent(params: GBizUpdateInfoParams): Promise<unknown>;
 }> = (client) => ({
   getUpdateInfoPatent: (params) =>
-    client.get('/updateInfo/patent', params as Record<string, unknown>),
+    client.get('/hojin/updateInfo/patent', params as Record<string, unknown>),
 });

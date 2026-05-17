@@ -10,5 +10,5 @@ export const getPatent: Plugin<unknown, {
   getPatent(params: GBizGetWithPagingParams): Promise<unknown>;
 }> = (client) => ({
   getPatent: ({ corporate_number, ...query }) =>
-    client.get(`/${encodeURIComponent(corporate_number)}/patent`, query),
+    client.get(`/hojin/${encodeURIComponent(corporate_number)}/patent`, query),
 });

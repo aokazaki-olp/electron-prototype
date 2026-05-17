@@ -10,5 +10,5 @@ export const getProcurement: Plugin<unknown, {
   getProcurement(params: GBizGetWithPagingParams): Promise<unknown>;
 }> = (client) => ({
   getProcurement: ({ corporate_number, ...query }) =>
-    client.get(`/${encodeURIComponent(corporate_number)}/procurement`, query),
+    client.get(`/hojin/${encodeURIComponent(corporate_number)}/procurement`, query),
 });

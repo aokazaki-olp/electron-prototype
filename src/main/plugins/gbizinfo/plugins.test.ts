@@ -66,7 +66,7 @@ describe('gBizINFO plugins — URL composition', () => {
     const { fetch, base } = buildTestService();
     const svc = base.use(plugins.getHojin);
     await svc.getHojin({ corporate_number: '1234567890123' });
-    expect(fetch.mock.calls[0]![0]).toBe('https://api.info.gbiz.go.jp/hojin/v2/1234567890123');
+    expect(fetch.mock.calls[0]![0]).toBe('https://api.info.gbiz.go.jp/hojin/v2/hojin/1234567890123');
   });
 
   const subResources: Array<[keyof typeof plugins, string, boolean]> = [
@@ -90,7 +90,7 @@ describe('gBizINFO plugins — URL composition', () => {
       : { corporate_number: '1234567890123' };
     await svc[name]!(params);
     const url = fetch.mock.calls[0]![0];
-    expect(url).toContain(`/hojin/v2/1234567890123/${path}`);
+    expect(url).toContain(`/hojin/v2/hojin/1234567890123/${path}`);
     if (paging) {
       expect(url).toContain('page=2');
     }
@@ -115,7 +115,7 @@ describe('gBizINFO plugins — URL composition', () => {
     const svc = base.use(plugin as any) as unknown as Record<string, (p: unknown) => Promise<unknown>>;
     await svc[name]!({ from: '2024-01-01', to: '2024-01-31', page: 3 });
     const url = fetch.mock.calls[0]![0];
-    expect(url).toContain(`/hojin/v2${path}`);
+    expect(url).toContain(`/hojin/v2/hojin${path}`);
     expect(url).toContain('from=2024-01-01');
     expect(url).toContain('to=2024-01-31');
     expect(url).toContain('page=3');

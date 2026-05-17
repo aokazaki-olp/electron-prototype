@@ -10,5 +10,5 @@ export const getUpdateInfoCommendation: Plugin<unknown, {
   getUpdateInfoCommendation(params: GBizUpdateInfoParams): Promise<unknown>;
 }> = (client) => ({
   getUpdateInfoCommendation: (params) =>
-    client.get('/updateInfo/commendation', params as Record<string, unknown>),
+    client.get('/hojin/updateInfo/commendation', params as Record<string, unknown>),
 });

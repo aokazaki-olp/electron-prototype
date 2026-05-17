@@ -10,5 +10,5 @@ export const getFinance: Plugin<unknown, {
   getFinance(params: GBizGetByNumberParams): Promise<unknown>;
 }> = (client) => ({
   getFinance: ({ corporate_number }) =>
-    client.get(`/${encodeURIComponent(corporate_number)}/finance`),
+    client.get(`/hojin/${encodeURIComponent(corporate_number)}/finance`),
 });

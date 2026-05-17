@@ -9,5 +9,5 @@ import type { GBizUpdateInfoParams } from '../../../ipc/contract.js';
 export const getUpdateInfo: Plugin<unknown, {
   getUpdateInfo(params: GBizUpdateInfoParams): Promise<unknown>;
 }> = (client) => ({
-  getUpdateInfo: (params) => client.get('/updateInfo', params as Record<string, unknown>),
+  getUpdateInfo: (params) => client.get('/hojin/updateInfo', params as Record<string, unknown>),
 });

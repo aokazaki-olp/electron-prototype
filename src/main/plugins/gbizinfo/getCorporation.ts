@@ -10,5 +10,5 @@ export const getCorporation: Plugin<unknown, {
   getCorporation(params: GBizGetByNumberParams): Promise<unknown>;
 }> = (client) => ({
   getCorporation: ({ corporate_number }) =>
-    client.get(`/${encodeURIComponent(corporate_number)}/corporation_info`),
+    client.get(`/hojin/${encodeURIComponent(corporate_number)}/corporation_info`),
 });

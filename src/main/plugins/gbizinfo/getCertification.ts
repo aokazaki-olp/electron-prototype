@@ -10,5 +10,5 @@ export const getCertification: Plugin<unknown, {
   getCertification(params: GBizGetWithPagingParams): Promise<unknown>;
 }> = (client) => ({
   getCertification: ({ corporate_number, ...query }) =>
-    client.get(`/${encodeURIComponent(corporate_number)}/certification`, query),
+    client.get(`/hojin/${encodeURIComponent(corporate_number)}/certification`, query),
 });

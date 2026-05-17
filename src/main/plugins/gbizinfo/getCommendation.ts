@@ -10,5 +10,5 @@ export const getCommendation: Plugin<unknown, {
   getCommendation(params: GBizGetWithPagingParams): Promise<unknown>;
 }> = (client) => ({
   getCommendation: ({ corporate_number, ...query }) =>
-    client.get(`/${encodeURIComponent(corporate_number)}/commendation`, query),
+    client.get(`/hojin/${encodeURIComponent(corporate_number)}/commendation`, query),
 });
