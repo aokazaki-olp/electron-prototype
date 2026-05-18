@@ -10,5 +10,6 @@ export const getUpdateInfoCorporation: Plugin<unknown, {
   getUpdateInfoCorporation(params: GBizUpdateInfoParams): Promise<unknown>;
 }> = (client) => ({
   getUpdateInfoCorporation: (params) =>
-    client.get('/hojin/updateInfo/corporation_info', params as Record<string, unknown>),
+    // v2 では /updateInfo/corporation （v1 では /updateInfo/corporation_info）
+    client.get('/hojin/updateInfo/corporation', params as Record<string, unknown>),
 });

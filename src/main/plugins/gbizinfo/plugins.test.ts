@@ -72,7 +72,7 @@ describe('gBizINFO plugins — URL composition', () => {
   const subResources: Array<[keyof typeof plugins, string, boolean]> = [
     ['getCertification', 'certification', true],
     ['getCommendation', 'commendation', true],
-    ['getCorporation', 'corporation_info', false],
+    ['getCorporation', 'corporation', false],
     ['getFinance', 'finance', false],
     ['getPatent', 'patent', true],
     ['getProcurement', 'procurement', true],
@@ -100,7 +100,7 @@ describe('gBizINFO plugins — URL composition', () => {
     ['getUpdateInfo', '/updateInfo'],
     ['getUpdateInfoCertification', '/updateInfo/certification'],
     ['getUpdateInfoCommendation', '/updateInfo/commendation'],
-    ['getUpdateInfoCorporation', '/updateInfo/corporation_info'],
+    ['getUpdateInfoCorporation', '/updateInfo/corporation'],
     ['getUpdateInfoFinance', '/updateInfo/finance'],
     ['getUpdateInfoPatent', '/updateInfo/patent'],
     ['getUpdateInfoProcurement', '/updateInfo/procurement'],
