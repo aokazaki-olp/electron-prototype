@@ -42,9 +42,11 @@ const NUMBER_FIELD: FieldDef = {
   placeholder: '1234567890123',
 };
 
+// v2 は yyyyMMdd を要求するが、HTML の date input は YYYY-MM-DD で値を保持する。
+// 送信時にハイフンを除去する変換は App.tsx 側の buildParams で行う。
 const UPDATE_INFO_FIELDS: FieldDef[] = [
-  { name: 'from', label: 'from (YYYY-MM-DD)', type: 'date', required: true },
-  { name: 'to', label: 'to (YYYY-MM-DD)', type: 'date', required: true },
+  { name: 'from', label: 'from (期間開始)', type: 'date', required: true },
+  { name: 'to', label: 'to (期間終了)', type: 'date', required: true },
 ];
 
 // 住所フィールドの候補パス。gBizINFO は配列 'hojin-infos[0]' を持つことが多い。

@@ -41,6 +41,10 @@ const buildParams = (endpoint: EndpointDef, form: FormState): Record<string, unk
       if (raw === 'true') {
         out[f.name] = 'true';
       }
+    } else if (f.type === 'date') {
+      // gBizINFO v2 の updateInfo 系は yyyyMMdd を要求するため、'-' を除去して送る。
+      // 他の API は date 入力を受けないので副作用なし。
+      out[f.name] = raw.replace(/-/g, '');
     } else {
       out[f.name] = raw;
     }
