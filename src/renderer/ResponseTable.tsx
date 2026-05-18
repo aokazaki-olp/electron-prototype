@@ -2,6 +2,7 @@
  * ResponseTable.tsx
  * @description 配列レスポンスをページネーション付きテーブルで表示する。
  *              NJA 正規化結果と Google Maps リンクを各行に付与する。
+ *              テーブル内インクリメンタル検索（ハイライト・大文字小文字区別）に対応。
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -9,6 +10,7 @@ import type { JSX } from 'react';
 import ReactPaginate from 'react-paginate';
 import type { NjaResult } from '../ipc/contract.js';
 import type { EndpointDef } from './endpoints.js';
+import { highlightText, testMatch } from './highlight.js';
 
 const PAGE_SIZES = [10, 20, 50, 100] as const;
 type PageSize = (typeof PAGE_SIZES)[number];
@@ -100,6 +102,8 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
   const [pageSize, setPageSize] = useState<PageSize>(20);
   const njaCache = useRef(new Map<string, NjaResult>());
   const [njaResults, setNjaResults] = useState<Map<string, NjaResult>>(new Map());
+  const [searchQuery, setSearchQuery] = useState('');
+  const [caseSensitive, setCaseSensitive] = useState(false);
 
   const columns = useMemo(() => {
     const keys = new Set<string>();
@@ -113,8 +117,8 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
     return [...keys];
   }, [rows]);
 
-  // rows・件数が変わったら先頭に戻す
-  useEffect(() => { setPage(0); }, [rows, pageSize]);
+  // rows・件数が変わったら先頭に戻し、検索もリセットする
+  useEffect(() => { setPage(0); setSearchQuery(''); }, [rows, pageSize]);
 
   useEffect(() => {
     const paths = endpoint.addressFieldPaths;
@@ -149,6 +153,17 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
     })();
   }, [page, pageSize, rows, endpoint.addressFieldPaths, arrayKey]);
 
+  // 全行を対象とした一致行数（ページをまたいで集計）
+  const matchRowCount = useMemo(() => {
+    if (!searchQuery) return 0;
+    return rows.filter((row) => {
+      if (typeof row !== 'object' || row === null) return false;
+      return columns.some((col) =>
+        testMatch(renderCell((row as Record<string, unknown>)[col]), searchQuery, caseSensitive),
+      );
+    }).length;
+  }, [rows, columns, searchQuery, caseSensitive]);
+
   if (rows.length === 0) return null;
 
   const hasAddress = !!endpoint.addressFieldPaths;
@@ -160,10 +175,64 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
 
   return (
     <div>
-      {/* テーブル上部: 件数 + 表示件数セレクタ */}
-      <div className="flex items-center gap-3 mb-2 flex-wrap">
-        <span className="text-xs text-slate-600 font-medium">
-          全{rows.length}件中 {rangeStart}〜{rangeEnd}件を表示
+      {/* 検索バー */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <div className="relative flex items-center">
+          <svg
+            className="absolute left-1.5 w-3.5 h-3.5 text-slate-400 pointer-events-none"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              fillRule="evenodd"
+              d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
+              clipRule="evenodd"
+            />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+            placeholder="テーブル内を検索…"
+            className="border border-slate-300 rounded pl-6 pr-6 py-1 text-xs w-52 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400"
+            aria-label="テーブル内検索"
+          />
+          {searchQuery ? (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-1.5 text-slate-400 hover:text-slate-600 leading-none text-sm"
+              aria-label="検索クリア"
+            >
+              ×
+            </button>
+          ) : null}
+        </div>
+
+        {/* 大文字小文字区別チェックボックス */}
+        <label
+          className="flex items-center gap-1 text-xs select-none cursor-pointer text-slate-600"
+          title="大文字と小文字を区別する"
+        >
+          <input
+            type="checkbox"
+            checked={caseSensitive}
+            onChange={(e) => { setCaseSensitive(e.target.checked); setPage(0); }}
+          />
+          <span className="font-mono font-semibold tracking-tight">Aa</span>
+        </label>
+
+        {/* 一致行数 */}
+        {searchQuery ? (
+          <span className={`text-xs font-medium ${matchRowCount > 0 ? 'text-blue-600' : 'text-amber-600'}`}>
+            {matchRowCount > 0 ? `${matchRowCount} 行一致` : '一致なし'}
+          </span>
+        ) : null}
+
+        {/* 件数 + 表示件数セレクタ */}
+        <span className="text-xs text-slate-500 ml-auto">
+          全{rows.length}件中 {rangeStart}〜{rangeEnd}件
         </span>
         <label className="flex items-center gap-1 text-xs text-slate-600">
           表示件数
@@ -272,7 +341,9 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
                         title={renderCellTitle(rawVal, cellText)}
                         className="px-2 py-1 border border-slate-200 max-w-xs truncate"
                       >
-                        {cellText}
+                        {searchQuery
+                          ? highlightText(cellText, searchQuery, caseSensitive)
+                          : cellText}
                       </td>
                     );
                   })}
@@ -285,7 +356,9 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
                         {!addr ? (
                           '—'
                         ) : njaResult ? (
-                          getNjaValue(njaResult, def.key)
+                          searchQuery
+                            ? highlightText(getNjaValue(njaResult, def.key), searchQuery, caseSensitive)
+                            : getNjaValue(njaResult, def.key)
                         ) : (
                           <span
                             className="inline-block w-10 h-2.5 bg-slate-200 rounded animate-pulse"
