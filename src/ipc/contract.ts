@@ -10,7 +10,23 @@
 //   ここでは「呼び出し側に必要な引数の形」と「戻り値が unknown であること」だけ宣言する。
 // ============================================================================
 
-export interface GBizSearchHojinParams {
+/**
+ * v2 全エンドポイント共通の追加パラメータ。"true" 指定でレスポンスに meta-data が含まれる。
+ */
+export interface GBizMetadataFlag {
+  metadata_flg?: 'true' | 'false';
+}
+
+/**
+ * v2 法人検索パラメータ。Swagger v2 に合わせて整理：
+ *   - 削除: business_item, business_summary, founded_year_from/to, sales_area,
+ *           unified_qualification 系 (v1 のみ)
+ *   - 追加: founded_year (単一), net_sales/total_assets 範囲, 平均年齢系,
+ *           patent / procurement / subsidy / certification / ministry / source
+ * Swagger 上は全パラメータ string 型なので number 系も最終的には文字列で送る。
+ * 型はアプリ内での扱いやすさを優先して number で保持する。
+ */
+export interface GBizSearchHojinParams extends GBizMetadataFlag {
   name?: string;
   corporate_number?: string;
   exist_flg?: string;
@@ -21,22 +37,31 @@ export interface GBizSearchHojinParams {
   capital_stock_to?: number;
   employee_number_from?: number;
   employee_number_to?: number;
-  business_item?: string;
-  business_summary?: string;
-  founded_year_from?: number;
-  founded_year_to?: number;
-  sales_area?: string;
-  unified_qualification?: string;
-  unified_qualification_sub01?: string;
-  unified_qualification_sub02?: string;
-  unified_qualification_sub03?: string;
-  unified_qualification_sub04?: string;
+  founded_year?: number;
+  net_sales_summary_of_business_results_from?: number;
+  net_sales_summary_of_business_results_to?: number;
+  total_assets_summary_of_business_results_from?: number;
+  total_assets_summary_of_business_results_to?: number;
+  average_continuous_service_years?: number;
+  average_age?: number;
+  month_average_predetermined_overtime_hours?: number;
+  female_workers_proportion?: number;
+  patent?: string;
+  procurement?: string;
+  procurement_amount_from?: number;
+  procurement_amount_to?: number;
+  subsidy?: string;
+  subsidy_amount_from?: number;
+  subsidy_amount_to?: number;
+  certification?: string;
+  ministry?: string;
+  source?: string;
   page?: number;
   limit?: number;
   [key: string]: unknown;
 }
 
-export interface GBizGetByNumberParams {
+export interface GBizGetByNumberParams extends GBizMetadataFlag {
   corporate_number: string;
 }
 
@@ -46,7 +71,7 @@ export interface GBizGetWithPagingParams extends GBizGetByNumberParams {
   [key: string]: unknown;
 }
 
-export interface GBizUpdateInfoParams {
+export interface GBizUpdateInfoParams extends GBizMetadataFlag {
   from: string; // YYYY-MM-DD
   to: string;
   page?: number;

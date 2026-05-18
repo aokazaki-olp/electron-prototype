@@ -36,6 +36,11 @@ const buildParams = (endpoint: EndpointDef, form: FormState): Record<string, unk
       if (!Number.isNaN(n)) {
         out[f.name] = n;
       }
+    } else if (f.type === 'checkbox') {
+      // checkbox は "true" のときのみクエリに含める（"false" はサーバ既定と同じため省略）
+      if (raw === 'true') {
+        out[f.name] = 'true';
+      }
     } else {
       out[f.name] = raw;
     }
@@ -83,21 +88,35 @@ const FieldInput = ({
   field: FieldDef;
   value: string;
   onChange: (v: string) => void;
-}): JSX.Element => (
-  <label className="flex flex-col gap-1 text-sm">
-    <span className="text-slate-700">
-      {field.label}
-      {field.required ? <span className="text-red-500"> *</span> : null}
-    </span>
-    <input
-      type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
-      value={value}
-      placeholder={field.placeholder}
-      onChange={(e) => onChange(e.target.value)}
-      className="border border-slate-300 rounded px-2 py-1"
-    />
-  </label>
-);
+}): JSX.Element => {
+  if (field.type === 'checkbox') {
+    return (
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={value === 'true'}
+          onChange={(e) => onChange(e.target.checked ? 'true' : '')}
+        />
+        <span className="text-slate-700">{field.label}</span>
+      </label>
+    );
+  }
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-slate-700">
+        {field.label}
+        {field.required ? <span className="text-red-500"> *</span> : null}
+      </span>
+      <input
+        type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'}
+        value={value}
+        placeholder={field.placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="border border-slate-300 rounded px-2 py-1"
+      />
+    </label>
+  );
+};
 
 const AddressPanel = ({
   address,

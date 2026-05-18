@@ -6,7 +6,7 @@
 
 import type { GBizChannel } from '../ipc/contract.js';
 
-export type FieldType = 'text' | 'number' | 'date';
+export type FieldType = 'text' | 'number' | 'date' | 'checkbox';
 
 export interface FieldDef {
   name: string;
@@ -15,6 +15,13 @@ export interface FieldDef {
   required?: boolean;
   placeholder?: string;
 }
+
+/**
+ * v2 全エンドポイント共通の追加パラメータ。各 endpoint の fields 末尾に自動的に付ける。
+ */
+export const COMMON_FIELDS: readonly FieldDef[] = [
+  { name: 'metadata_flg', label: 'メタデータ取得 (metadata_flg)', type: 'checkbox' },
+];
 
 export type EndpointCategory = '基本' | '関連情報' | '更新情報';
 
@@ -45,16 +52,35 @@ const UPDATE_INFO_FIELDS: FieldDef[] = [
 const HOJIN_LOCATION = ['hojin-infos[].location'];
 const WORKPLACE_LOCATION = ['workplace[].location', 'hojin-infos[].location'];
 
-export const ENDPOINTS: readonly EndpointDef[] = [
+const RAW_ENDPOINTS: readonly EndpointDef[] = [
   {
     id: 'searchHojin',
     label: 'searchHojin (法人検索)',
     category: '基本',
+    // v2 では多くのパラメータが追加されている。プロトタイプでは代表的なものだけ露出する。
+    // 残りは contract.ts の [key: string]: unknown 経由で生 JSON で呼び出し可能。
     fields: [
       { name: 'name', label: '法人名（部分一致）', type: 'text' },
       { name: 'corporate_number', label: '法人番号', type: 'text' },
+      { name: 'corporate_type', label: '法人種別', type: 'text' },
       { name: 'prefecture', label: '都道府県コード', type: 'text' },
       { name: 'city', label: '市区町村コード', type: 'text' },
+      { name: 'exist_flg', label: '存続フラグ', type: 'text' },
+      { name: 'capital_stock_from', label: '資本金 (以上)', type: 'number' },
+      { name: 'capital_stock_to', label: '資本金 (以下)', type: 'number' },
+      { name: 'employee_number_from', label: '従業員数 (以上)', type: 'number' },
+      { name: 'employee_number_to', label: '従業員数 (以下)', type: 'number' },
+      { name: 'founded_year', label: '創業年', type: 'number' },
+      { name: 'patent', label: '特許 (商標フラグ)', type: 'text' },
+      { name: 'procurement', label: '調達 (フラグ)', type: 'text' },
+      { name: 'procurement_amount_from', label: '調達額 (以上)', type: 'number' },
+      { name: 'procurement_amount_to', label: '調達額 (以下)', type: 'number' },
+      { name: 'subsidy', label: '補助金 (フラグ)', type: 'text' },
+      { name: 'subsidy_amount_from', label: '補助金額 (以上)', type: 'number' },
+      { name: 'subsidy_amount_to', label: '補助金額 (以下)', type: 'number' },
+      { name: 'certification', label: '届出・認定・表彰 (フラグ)', type: 'text' },
+      { name: 'ministry', label: '中央省庁 (ministry)', type: 'text' },
+      { name: 'source', label: '出典元 (source)', type: 'text' },
     ],
     addressFieldPaths: HOJIN_LOCATION,
   },
@@ -169,6 +195,15 @@ export const ENDPOINTS: readonly EndpointDef[] = [
     fields: UPDATE_INFO_FIELDS,
   },
 ];
+
+/**
+ * 各エンドポイントの末尾に COMMON_FIELDS (metadata_flg 等) を自動付与した正式版。
+ * UI / フォーム生成からはこちらを参照する。
+ */
+export const ENDPOINTS: readonly EndpointDef[] = RAW_ENDPOINTS.map((e) => ({
+  ...e,
+  fields: [...e.fields, ...COMMON_FIELDS],
+}));
 
 /**
  * 'foo.bar[].baz' のような簡易パス記法でレスポンスから住所文字列を抽出する。
