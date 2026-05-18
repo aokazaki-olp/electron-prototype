@@ -70,6 +70,15 @@ const renderCell = (value: unknown): string => {
   return String(value);
 };
 
+/** ネスト値を title 属性に使うための JSON 文字列（長すぎる場合は省略） */
+const renderCellTitle = (value: unknown, displayText: string): string => {
+  if (typeof value === 'object' && value !== null) {
+    const json = JSON.stringify(value, null, 2);
+    return json.length < 500 ? json : displayText;
+  }
+  return displayText;
+};
+
 const getNjaValue = (result: NjaResult, key: NjaColKey): string => {
   if (key === 'point.level') {
     return result.point != null ? String(result.point.level) : '—';
@@ -82,9 +91,10 @@ const getNjaValue = (result: NjaResult, key: NjaColKey): string => {
 interface Props {
   data: unknown;
   endpoint: EndpointDef;
+  onSelectCorporate?: (corpNumber: string) => void;
 }
 
-export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => {
+export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX.Element | null => {
   const { rows, arrayKey } = useMemo(() => extractRows(data), [data]);
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState<PageSize>(20);
@@ -142,33 +152,64 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
   if (rows.length === 0) return null;
 
   const hasAddress = !!endpoint.addressFieldPaths;
+  const hasCorporateColumn = columns.includes('corporate_number') && !!onSelectCorporate;
   const pageCount = Math.ceil(rows.length / pageSize);
   const currentRows = rows.slice(page * pageSize, (page + 1) * pageSize);
+  const rangeStart = page * pageSize + 1;
+  const rangeEnd = Math.min((page + 1) * pageSize, rows.length);
 
   return (
     <div>
-      <div className="flex items-center gap-3 mb-2">
-        <span className="text-xs text-slate-500">{rows.length}件</span>
+      {/* テーブル上部: 件数 + 表示件数セレクタ */}
+      <div className="flex items-center gap-3 mb-2 flex-wrap">
+        <span className="text-xs text-slate-600 font-medium">
+          全{rows.length}件中 {rangeStart}〜{rangeEnd}件を表示
+        </span>
         <label className="flex items-center gap-1 text-xs text-slate-600">
           表示件数
           <select
             value={pageSize}
-            onChange={e => {
-              setPageSize(Number(e.target.value) as PageSize);
-            }}
+            onChange={(e) => setPageSize(Number(e.target.value) as PageSize)}
             className="border border-slate-300 rounded px-1 py-0.5"
           >
-            {PAGE_SIZES.map(s => (
+            {PAGE_SIZES.map((s) => (
               <option key={s} value={s}>{s}件</option>
             ))}
           </select>
         </label>
       </div>
+
+      {/* NJA レベル凡例（住所列がある場合） */}
+      {hasAddress ? (
+        <details className="mb-2 text-xs text-slate-500">
+          <summary className="cursor-pointer select-none hover:text-slate-700 inline-flex items-center gap-1">
+            住所正規化レベルの見方
+          </summary>
+          <div className="mt-1 pl-2 grid grid-cols-2 gap-x-6 gap-y-0.5 text-slate-500">
+            {[
+              ['0', '認識不能'],
+              ['1', '都道府県'],
+              ['2', '市区町村'],
+              ['3', '大字・丁目'],
+              ['7', '街区符号'],
+              ['8', '住居番号・地番'],
+            ].map(([lv, desc]) => (
+              <span key={lv}><b className="text-slate-700">{lv}</b>: {desc}</span>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
       <div className="overflow-x-auto">
         <table className="text-xs border-collapse min-w-full">
           <thead>
             <tr>
-              {columns.map(col => (
+              {hasCorporateColumn ? (
+                <th className="bg-amber-100 px-2 py-1 text-left font-semibold whitespace-nowrap border border-slate-300">
+                  選択
+                </th>
+              ) : null}
+              {columns.map((col) => (
                 <th
                   key={col}
                   title={col}
@@ -178,7 +219,7 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
                 </th>
               ))}
               {hasAddress &&
-                NJA_COL_DEFS.map(def => (
+                NJA_COL_DEFS.map((def) => (
                   <th
                     key={def.key}
                     title={def.title}
@@ -187,14 +228,14 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
                     {def.header}
                   </th>
                 ))}
-              {hasAddress && (
+              {hasAddress ? (
                 <th
                   title="Google Maps で開く"
-                  className="bg-emerald-100 px-2 py-1 text-left font-semibold whitespace-nowrap border border-slate-300 cursor-help"
+                  className="bg-emerald-100 px-2 py-1 text-left font-semibold whitespace-nowrap border border-slate-300"
                 >
                   地図
                 </th>
-              )}
+              ) : null}
             </tr>
           </thead>
           <tbody>
@@ -203,34 +244,59 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
                 ? extractAddressFromRow(row, endpoint.addressFieldPaths!, arrayKey)
                 : undefined;
               const njaResult = addr ? njaResults.get(addr) : undefined;
+              const corpNumber = hasCorporateColumn
+                ? (row as Record<string, unknown>).corporate_number
+                : undefined;
+
               return (
                 <tr key={i} className="hover:bg-slate-50">
-                  {columns.map(col => {
-                    const cellVal = renderCell(
-                      (row as Record<string, unknown>)[col],
-                    );
+                  {hasCorporateColumn ? (
+                    <td className="px-2 py-1 border border-slate-200 whitespace-nowrap">
+                      {typeof corpNumber === 'string' ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelectCorporate!(corpNumber)}
+                          className="px-2 py-1 text-xs bg-amber-500 text-white rounded hover:bg-amber-600 font-medium"
+                        >
+                          選択
+                        </button>
+                      ) : null}
+                    </td>
+                  ) : null}
+                  {columns.map((col) => {
+                    const rawVal = (row as Record<string, unknown>)[col];
+                    const cellText = renderCell(rawVal);
                     return (
                       <td
                         key={col}
-                        title={cellVal}
+                        title={renderCellTitle(rawVal, cellText)}
                         className="px-2 py-1 border border-slate-200 max-w-xs truncate"
                       >
-                        {cellVal}
+                        {cellText}
                       </td>
                     );
                   })}
                   {hasAddress &&
-                    NJA_COL_DEFS.map(def => (
+                    NJA_COL_DEFS.map((def) => (
                       <td
                         key={def.key}
                         className="px-2 py-1 border border-slate-200 whitespace-nowrap"
                       >
-                        {addr ? (njaResult ? getNjaValue(njaResult, def.key) : '…') : '—'}
+                        {!addr ? (
+                          '—'
+                        ) : njaResult ? (
+                          getNjaValue(njaResult, def.key)
+                        ) : (
+                          <span
+                            className="inline-block w-10 h-2.5 bg-slate-200 rounded animate-pulse"
+                            aria-label="正規化中"
+                          />
+                        )}
                       </td>
                     ))}
-                  {hasAddress && (
+                  {hasAddress ? (
                     <td className="px-2 py-1 border border-slate-200 whitespace-nowrap">
-                      {njaResult && addr && (
+                      {njaResult && addr ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -239,20 +305,21 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
                               : `https://www.google.com/maps/search/${encodeURIComponent(addr)}`;
                             void window.shell.openExternal(url);
                           }}
-                          className="px-1.5 py-0.5 bg-blue-600 text-white rounded"
+                          className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
                         >
                           地図
                         </button>
-                      )}
+                      ) : null}
                     </td>
-                  )}
+                  ) : null}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      {pageCount > 1 && (
+
+      {pageCount > 1 ? (
         <ReactPaginate
           pageCount={pageCount}
           pageRangeDisplayed={5}
@@ -269,7 +336,7 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
           disabledLinkClassName="opacity-40 cursor-not-allowed pointer-events-none"
           breakLinkClassName="block px-2 py-1"
         />
-      )}
+      ) : null}
     </div>
   );
 };
