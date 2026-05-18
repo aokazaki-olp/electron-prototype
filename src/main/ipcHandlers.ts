@@ -69,6 +69,10 @@ export const registerIpcHandlers = (deps: RegisterIpcDeps): void => {
         const method = deps.gbiz[name as GBizChannel] as (a: Record<string, unknown>) => Promise<unknown>;
         return await method.call(deps.gbiz, args);
       } catch (e) {
+        // gBizINFO は「該当データなし」を 404 で返す。エラーではなく空レスポンスとして扱う。
+        if (e instanceof HttpError && e.status === 404) {
+          return e.body ?? { id: null, message: '404 - Not Found.', errors: [] };
+        }
         throw toIpcError(e);
       }
     });

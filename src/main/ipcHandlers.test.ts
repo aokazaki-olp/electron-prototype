@@ -56,15 +56,25 @@ describe('registerIpcHandlers', () => {
     await expect(fn({}, [])).rejects.toBeInstanceOf(TypeError);
   });
 
-  it('gbiz: HttpError は plain Error に畳まれて投げられる', async () => {
+  it('gbiz: 404 はエラー化せずレスポンス本文を返す（該当データなし）', async () => {
+    const deps = mkDeps();
+    const body = { id: null, message: '404 - Not Found.', errors: [] };
+    (deps.gbiz as unknown as Record<string, ReturnType<typeof vi.fn>>).getHojin
+      .mockRejectedValueOnce(new HttpError('no', 404, body));
+    registerIpcHandlers(deps);
+    const fn = handlers.get('gbiz:getHojin')!;
+    await expect(fn({}, { corporate_number: '1' })).resolves.toEqual(body);
+  });
+
+  it('gbiz: 404 以外の HttpError は plain Error に畳まれて投げられる', async () => {
     const deps = mkDeps();
     (deps.gbiz as unknown as Record<string, ReturnType<typeof vi.fn>>).getHojin
-      .mockRejectedValueOnce(new HttpError('no', 404, { e: 1 }));
+      .mockRejectedValueOnce(new HttpError('boom', 500, { e: 1 }));
     registerIpcHandlers(deps);
     const fn = handlers.get('gbiz:getHojin')!;
     await expect(fn({}, { corporate_number: '1' })).rejects.toMatchObject({
-      message: expect.stringContaining('HTTP 404'),
-      status: 404,
+      message: expect.stringContaining('HTTP 500'),
+      status: 500,
     });
   });
 
