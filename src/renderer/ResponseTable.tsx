@@ -126,7 +126,7 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
           .catch(() => {}),
       ),
     ).then(() => { setNjaResults(new Map(njaCache.current)); });
-  }, [page, rows, endpoint.addressFieldPaths, arrayKey]);
+  }, [page, pageSize, rows, endpoint.addressFieldPaths, arrayKey]);
 
   if (rows.length === 0) return null;
 
