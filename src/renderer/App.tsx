@@ -229,7 +229,14 @@ const App = (): JSX.Element => {
       const data = await method(params);
       setResponse(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      // gBizINFO は「該当データなし」を 404 で返す。エラー扱いせずレスポンス本文を表示する。
+      const status = (e as { status?: number }).status;
+      const body = (e as { body?: unknown }).body;
+      if (status === 404) {
+        setResponse(body ?? { message: '404 - Not Found (該当データなし)' });
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setLoading(false);
     }
