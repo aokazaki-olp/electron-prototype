@@ -4,7 +4,8 @@ import ReactPaginate from 'react-paginate';
 import type { NjaResult } from '../ipc/contract.js';
 import type { EndpointDef } from './endpoints.js';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZES = [10, 20, 50, 100] as const;
+type PageSize = (typeof PAGE_SIZES)[number];
 
 const NJA_COL_DEFS = [
   { header: '正規化Lv', key: 'level',       title: 'level — 住所の正規化レベル (0=不明〜8=番地)' },
@@ -80,6 +81,7 @@ interface Props {
 export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => {
   const { rows, arrayKey } = useMemo(() => extractRows(data), [data]);
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<PageSize>(20);
   const njaCache = useRef(new Map<string, NjaResult>());
   const [njaResults, setNjaResults] = useState<Map<string, NjaResult>>(new Map());
 
@@ -95,14 +97,14 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
     return [...keys];
   }, [rows]);
 
-  // ページが変わったら先頭に戻す
-  useEffect(() => { setPage(0); }, [rows]);
+  // rows・件数が変わったら先頭に戻す
+  useEffect(() => { setPage(0); }, [rows, pageSize]);
 
   useEffect(() => {
     const paths = endpoint.addressFieldPaths;
     if (!paths || rows.length === 0) return;
 
-    const pageRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    const pageRows = rows.slice(page * pageSize, (page + 1) * pageSize);
     const uncached: string[] = [];
     for (const row of pageRows) {
       const addr = extractAddressFromRow(row, paths, arrayKey);
@@ -129,12 +131,28 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
   if (rows.length === 0) return null;
 
   const hasAddress = !!endpoint.addressFieldPaths;
-  const pageCount = Math.ceil(rows.length / PAGE_SIZE);
-  const currentRows = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const pageCount = Math.ceil(rows.length / pageSize);
+  const currentRows = rows.slice(page * pageSize, (page + 1) * pageSize);
 
   return (
     <div>
-      <div className="text-xs text-slate-500 mb-2">{rows.length}件</div>
+      <div className="flex items-center gap-3 mb-2">
+        <span className="text-xs text-slate-500">{rows.length}件</span>
+        <label className="flex items-center gap-1 text-xs text-slate-600">
+          表示件数
+          <select
+            value={pageSize}
+            onChange={e => {
+              setPageSize(Number(e.target.value) as PageSize);
+            }}
+            className="border border-slate-300 rounded px-1 py-0.5"
+          >
+            {PAGE_SIZES.map(s => (
+              <option key={s} value={s}>{s}件</option>
+            ))}
+          </select>
+        </label>
+      </div>
       <div className="overflow-x-auto">
         <table className="text-xs border-collapse min-w-full">
           <thead>

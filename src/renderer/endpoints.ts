@@ -35,15 +35,9 @@ const NUMBER_FIELD: FieldDef = {
   placeholder: '1234567890123',
 };
 
-const PAGING_FIELDS: FieldDef[] = [
-  { name: 'page', label: 'page', type: 'number' },
-  { name: 'limit', label: 'limit', type: 'number' },
-];
-
 const UPDATE_INFO_FIELDS: FieldDef[] = [
   { name: 'from', label: 'from (YYYY-MM-DD)', type: 'date', required: true },
   { name: 'to', label: 'to (YYYY-MM-DD)', type: 'date', required: true },
-  ...PAGING_FIELDS,
 ];
 
 // 住所フィールドの候補パス。gBizINFO は配列 'hojin-infos[0]' を持つことが多い。
@@ -61,7 +55,6 @@ export const ENDPOINTS: readonly EndpointDef[] = [
       { name: 'corporate_number', label: '法人番号', type: 'text' },
       { name: 'prefecture', label: '都道府県コード', type: 'text' },
       { name: 'city', label: '市区町村コード', type: 'text' },
-      ...PAGING_FIELDS,
     ],
     addressFieldPaths: HOJIN_LOCATION,
   },
@@ -76,13 +69,13 @@ export const ENDPOINTS: readonly EndpointDef[] = [
     id: 'getCertification',
     label: 'getCertification (認定)',
     category: '関連情報',
-    fields: [NUMBER_FIELD, ...PAGING_FIELDS],
+    fields: [NUMBER_FIELD],
   },
   {
     id: 'getCommendation',
     label: 'getCommendation (表彰)',
     category: '関連情報',
-    fields: [NUMBER_FIELD, ...PAGING_FIELDS],
+    fields: [NUMBER_FIELD],
   },
   {
     id: 'getCorporation',
@@ -100,19 +93,19 @@ export const ENDPOINTS: readonly EndpointDef[] = [
     id: 'getPatent',
     label: 'getPatent (特許)',
     category: '関連情報',
-    fields: [NUMBER_FIELD, ...PAGING_FIELDS],
+    fields: [NUMBER_FIELD],
   },
   {
     id: 'getProcurement',
     label: 'getProcurement (調達)',
     category: '関連情報',
-    fields: [NUMBER_FIELD, ...PAGING_FIELDS],
+    fields: [NUMBER_FIELD],
   },
   {
     id: 'getSubsidy',
     label: 'getSubsidy (補助金)',
     category: '関連情報',
-    fields: [NUMBER_FIELD, ...PAGING_FIELDS],
+    fields: [NUMBER_FIELD],
   },
   {
     id: 'getWorkplace',

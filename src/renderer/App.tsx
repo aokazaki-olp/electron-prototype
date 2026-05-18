@@ -263,7 +263,17 @@ const App = (): JSX.Element => {
           <>
             <h2 className="mt-4 mb-2 text-sm font-semibold text-slate-700">Response</h2>
             {extractRows(response).rows.length > 0 ? (
-              <ResponseTable data={response} endpoint={endpoint} />
+              <>
+                <ResponseTable data={response} endpoint={endpoint} />
+                <details className="mt-3">
+                  <summary className="text-xs text-slate-500 cursor-pointer select-none hover:text-slate-700">
+                    生 JSON
+                  </summary>
+                  <div className="mt-2">
+                    <JsonViewer data={response} />
+                  </div>
+                </details>
+              </>
             ) : (
               <>
                 <JsonViewer data={response} />
