@@ -14,7 +14,7 @@ import { ResponseTable, extractRows } from './ResponseTable.js';
 
 type FormState = Record<string, string>;
 
-const CATEGORIES: EndpointCategory[] = ['基本', '関連情報', '更新情報'];
+const CATEGORIES = ['基本', '関連情報', '更新情報'] as const satisfies readonly EndpointCategory[];
 
 const groupByCategory = (): Record<EndpointCategory, EndpointDef[]> => {
   const out: Record<EndpointCategory, EndpointDef[]> = { 基本: [], 関連情報: [], 更新情報: [] };
@@ -199,7 +199,7 @@ const App = (): JSX.Element => {
   const [njaLoading, setNjaLoading] = useState(false);
 
   const endpoint = useMemo(
-    () => ENDPOINTS.find((e) => e.id === selectedId) ?? ENDPOINTS[0]!,
+    () => ENDPOINTS.find((e) => e.id === selectedId) ?? ENDPOINTS[0],
     [selectedId],
   );
 
@@ -225,18 +225,12 @@ const App = (): JSX.Element => {
     setNjaError(null);
     try {
       const params = buildParams(endpoint, form);
+      // GBizApi の各メソッドはパラメータ型が異なるため共通シグネチャにキャストして呼び出す
       const method = window.gbiz[endpoint.id] as (a: Record<string, unknown>) => Promise<unknown>;
       const data = await method(params);
       setResponse(data);
     } catch (e) {
-      // gBizINFO は「該当データなし」を 404 で返す。エラー扱いせずレスポンス本文を表示する。
-      const status = (e as { status?: number }).status;
-      const body = (e as { body?: unknown }).body;
-      if (status === 404) {
-        setResponse(body ?? { message: '404 - Not Found (該当データなし)' });
-      } else {
-        setError(e instanceof Error ? e.message : String(e));
-      }
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -294,7 +288,7 @@ const App = (): JSX.Element => {
             <h2 className="mt-4 mb-2 text-sm font-semibold text-slate-700">Response</h2>
             {extractRows(response).rows.length > 0 ? (
               <>
-                <ResponseTable data={response} endpoint={endpoint} />
+                <ResponseTable key={endpoint.id} data={response} endpoint={endpoint} />
                 <details className="mt-3">
                   <summary className="text-xs text-slate-500 cursor-pointer select-none hover:text-slate-700">
                     生 JSON

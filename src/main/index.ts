@@ -33,7 +33,10 @@ const createWindow = (): void => {
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    // ipcHandlers の assertExternalUrl と同等のバリデーションをここでも適用する
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      void shell.openExternal(url);
+    }
     return { action: 'deny' };
   });
 

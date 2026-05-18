@@ -1,3 +1,8 @@
+/**
+ * JsonViewer.tsx
+ * @description react-json-view-lite を使い、単一レスポンスをシンタックスハイライト付きで表示する。
+ */
+
 import type { JSX } from 'react';
 import { JsonView, darkStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';

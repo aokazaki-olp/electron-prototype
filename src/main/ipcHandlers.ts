@@ -16,23 +16,20 @@ import {
   SHELL_OPEN_EXTERNAL_CHANNEL,
   gbizChannel,
 } from '../ipc/contract.js';
-import type { GBizChannel } from '../ipc/contract.js';
 
 /**
  * カスタムエラーは IPC の構造化クローンで失われるため、plain Error に変換する
+ *
+ * §7.5: Error のカスタムプロパティ（status / body 等）は IPC 転送後に消えるため、
+ * status と body を message 文字列に畳み込んで情報を保持する。
  *
  * @param e - 任意の例外
  * @returns renderer へ送る Error
  */
 const toIpcError = (e: unknown): Error => {
   if (e instanceof HttpError) {
-    const err = new Error(`HTTP ${e.status}: ${e.message}`) as Error & {
-      status: number;
-      body: unknown;
-    };
-    err.status = e.status;
-    err.body = e.body;
-    return err;
+    const bodyStr = e.body != null ? ` — ${JSON.stringify(e.body)}` : '';
+    return new Error(`HTTP ${e.status}: ${e.message}${bodyStr}`);
   }
   return e instanceof Error ? e : new Error(String(e));
 };
@@ -59,14 +56,20 @@ export interface RegisterIpcDeps {
   address: AddressService;
 }
 
+/**
+ * IPC ハンドラを登録する
+ *
+ * @param deps - gbiz サービスと address サービス
+ */
 export const registerIpcHandlers = (deps: RegisterIpcDeps): void => {
   for (const name of GBIZ_CHANNELS) {
     const channel = gbizChannel(name);
     ipcMain.handle(channel, async (_event, params: unknown) => {
       try {
         const args = assertObjectArg(channel, params);
-        // GBizApi は全メソッドが `(object) => Promise<unknown>` シグネチャに統一されている
-        const method = deps.gbiz[name as GBizChannel] as (a: Record<string, unknown>) => Promise<unknown>;
+        // GBizApi の各メソッドはパラメータ型が異なるため、共通シグネチャにキャストして呼び出す
+        // name は GBIZ_CHANNELS の要素なので GBizChannel 型が保証されている
+        const method = deps.gbiz[name] as (a: Record<string, unknown>) => Promise<unknown>;
         return await method.call(deps.gbiz, args);
       } catch (e) {
         // gBizINFO は「該当データなし」を 404 で返す。エラーではなく空レスポンスとして扱う。

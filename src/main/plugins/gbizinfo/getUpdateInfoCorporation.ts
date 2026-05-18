@@ -1,6 +1,6 @@
 /**
  * getUpdateInfoCorporation.ts
- * @description GET /hojin/updateInfo/corporation_info
+ * @description GET /hojin/updateInfo/corporation — 活動情報更新情報（v2）
  */
 
 import type { Plugin } from '../../../libs/index.js';

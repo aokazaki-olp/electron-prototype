@@ -201,15 +201,21 @@ const RAW_ENDPOINTS: readonly EndpointDef[] = [
 /**
  * 各エンドポイントの末尾に COMMON_FIELDS (metadata_flg 等) を自動付与した正式版。
  * UI / フォーム生成からはこちらを参照する。
+ *
+ * RAW_ENDPOINTS は静的に 19 要素があることが保証されているため非空タプル型にアサートし、
+ * ENDPOINTS[0] アクセスが `!` なしで型安全に行えるようにする。
  */
-export const ENDPOINTS: readonly EndpointDef[] = RAW_ENDPOINTS.map((e) => ({
+export const ENDPOINTS: readonly [EndpointDef, ...EndpointDef[]] = RAW_ENDPOINTS.map((e) => ({
   ...e,
   fields: [...e.fields, ...COMMON_FIELDS],
-}));
+})) as unknown as readonly [EndpointDef, ...EndpointDef[]];
 
 /**
- * 'foo.bar[].baz' のような簡易パス記法でレスポンスから住所文字列を抽出する。
- * '[]' は配列の先頭要素を辿る。見つからなければ undefined。
+ * 簡易パス記法でレスポンスから住所文字列を抽出する
+ *
+ * @param data - レスポンスデータ（unknown）
+ * @param paths - `'foo.bar[].baz'` 形式のパス候補。`[]` は配列の先頭要素を辿る
+ * @returns 最初に見つかった住所文字列。見つからなければ undefined
  */
 export const extractFirstAddress = (
   data: unknown,

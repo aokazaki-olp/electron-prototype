@@ -1,3 +1,9 @@
+/**
+ * ResponseTable.tsx
+ * @description 配列レスポンスをページネーション付きテーブルで表示する。
+ *              NJA 正規化結果と Google Maps リンクを各行に付与する。
+ */
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { JSX } from 'react';
 import ReactPaginate from 'react-paginate';
@@ -118,14 +124,19 @@ export const ResponseTable = ({ data, endpoint }: Props): JSX.Element | null => 
       return;
     }
 
-    void Promise.all(
-      uncached.map(addr =>
-        window.nja
-          .normalize(addr)
-          .then(result => { njaCache.current.set(addr, result); })
-          .catch(() => {}),
-      ),
-    ).then(() => { setNjaResults(new Map(njaCache.current)); });
+    void (async () => {
+      await Promise.all(
+        uncached.map(async (addr) => {
+          try {
+            const result = await window.nja.normalize(addr);
+            njaCache.current.set(addr, result);
+          } catch {
+            // NJA 失敗は行単位で無視（他の行は表示を継続する）
+          }
+        }),
+      );
+      setNjaResults(new Map(njaCache.current));
+    })();
   }, [page, pageSize, rows, endpoint.addressFieldPaths, arrayKey]);
 
   if (rows.length === 0) return null;

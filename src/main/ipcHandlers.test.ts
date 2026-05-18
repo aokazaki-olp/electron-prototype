@@ -74,7 +74,6 @@ describe('registerIpcHandlers', () => {
     const fn = handlers.get('gbiz:getHojin')!;
     await expect(fn({}, { corporate_number: '1' })).rejects.toMatchObject({
       message: expect.stringContaining('HTTP 500'),
-      status: 500,
     });
   });
 

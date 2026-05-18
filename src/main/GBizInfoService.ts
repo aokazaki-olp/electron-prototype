@@ -24,6 +24,7 @@ export type GBizService = BaseClient<unknown> & GBizApi;
  * @param token - gBizINFO API トークン
  * @param logger - ロガー（省略時は無効）
  * @returns 18 メソッドを公開した BaseClient
+ * @throws {TypeError} token が空文字または string 以外の場合
  */
 export const createGBizInfoService = (token: string, logger?: Logger): GBizService => {
   const base = GBizInfoApiClient.create(token, { logger });

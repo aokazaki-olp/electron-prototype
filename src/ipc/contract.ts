@@ -164,6 +164,12 @@ export const GBIZ_CHANNELS = [
 
 export type GBizChannel = typeof GBIZ_CHANNELS[number];
 
+/**
+ * GBizChannel 名を IPC チャンネル文字列に変換する
+ *
+ * @param name - GBizChannel 名
+ * @returns `gbiz:<name>` 形式の IPC チャンネル文字列
+ */
 export const gbizChannel = (name: GBizChannel): string => `gbiz:${name}`;
 export const NJA_CHANNEL = 'nja:normalize';
 export const SHELL_OPEN_EXTERNAL_CHANNEL = 'shell:openExternal';

@@ -17,16 +17,6 @@ const mkResponse = (overrides: Partial<RawResponse> = {}): RawResponse => ({
   ...overrides,
 });
 
-const mkClient = () => {
-  const fetch = vi.fn<Transport['fetch']>().mockResolvedValue(mkResponse());
-  // GBizInfoApiClient.create は transport を受け取らないので、token + 自前で transport を差し替えるパターンが必要。
-  // → ライブラリ API を見ると create(token, { transport }) で渡せる。ただし createGBizInfoService は token しか取らない。
-  // 簡易化のため、GBizInfoService の上で v2BaseUrl を回避できないので、テストでは GBizInfoApiClient を直接組み立てない代わりに、
-  // global fetch をモックする路線でなく、libs を経由する。ここでは createGBizInfoService の transport 差し替えは不要、
-  // 代わりに「ライブラリ層 → withV2BaseUrl → プラグイン」の組み立てを別途検証する。
-  return { fetch };
-};
-
 // プラグイン直接呼び出しテスト: GBizInfoApiClient を transport 差し替えで作り、各プラグインを use() する
 import { GBizInfoApiClient } from '../../../libs/index.js';
 import * as plugins from './index.js';

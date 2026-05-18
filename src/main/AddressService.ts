@@ -63,10 +63,14 @@ export const createAddressService = (deps: AddressServiceDeps): AddressService =
       if (cached) {
         return cached;
       }
-      const p = deps.normalize(address).then(toNjaResult).catch((e) => {
-        cache.delete(address); // 失敗はキャッシュしない
-        throw e;
-      });
+      const p = (async () => {
+        try {
+          return toNjaResult(await deps.normalize(address));
+        } catch (e) {
+          cache.delete(address); // 失敗はキャッシュしない
+          throw e;
+        }
+      })();
       cache.set(address, p);
       return p;
     },
