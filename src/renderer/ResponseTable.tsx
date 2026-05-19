@@ -116,7 +116,7 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
 
   const columns = useMemo(() => {
     const keys = new Set<string>();
-    for (const row of rows.slice(0, 5)) {
+    for (const row of rows) {
       if (typeof row === 'object' && row !== null) {
         for (const k of Object.keys(row as Record<string, unknown>)) {
           keys.add(k);
