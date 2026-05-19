@@ -1,5 +1,5 @@
-appId: com.example.gbizinfo-electron
-productName: gBizINFO Electron
+appId: com.example.salesforce-explorer
+productName: Salesforce Explorer
 directories:
   output: dist
 files:
@@ -7,7 +7,3 @@ files:
   - package.json
 win:
   target: portable
-mac:
-  target: dir
-linux:
-  target: AppImage
