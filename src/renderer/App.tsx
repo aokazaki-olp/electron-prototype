@@ -486,9 +486,10 @@ const App = (): JSX.Element => {
         {advancedFields.length > 0 ? (
           <details
             open={isAdvancedOpen}
-            onToggle={(e) =>
-              setAdvancedOpen((prev) => ({ ...prev, [selectedId]: e.currentTarget.open }))
-            }
+            onToggle={(e) => {
+              const open = e.currentTarget.open;
+              setAdvancedOpen((prev) => ({ ...prev, [selectedId]: open }));
+            }}
             className="mb-3 border border-slate-200 rounded p-3 bg-slate-50"
           >
             <summary className="text-xs font-medium text-slate-500 cursor-pointer select-none hover:text-slate-700 list-none flex items-center gap-1">
