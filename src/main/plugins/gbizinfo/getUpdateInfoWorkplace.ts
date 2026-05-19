@@ -10,5 +10,5 @@ export const getUpdateInfoWorkplace: Plugin<unknown, {
   getUpdateInfoWorkplace(params: GBizUpdateInfoParams): Promise<unknown>;
 }> = (client) => ({
   getUpdateInfoWorkplace: (params) =>
-    client.get('/hojin/updateInfo/workplace', params as Record<string, unknown>),
+    client.get('/hojin/updateInfo/workplace', params),
 });

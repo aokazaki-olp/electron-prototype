@@ -28,11 +28,18 @@ const NJA_COL_DEFS = [
 
 type NjaColKey = (typeof NJA_COL_DEFS)[number]['key'];
 
+/**
+ * レスポンスデータから行配列とその配列キーを取り出す
+ *
+ * @param data - API レスポンス（unknown）
+ * @returns rows — 行データの配列、arrayKey — 配列が格納されていたキー名（トップレベル配列の場合は null）
+ */
 export const extractRows = (
   data: unknown,
 ): { rows: unknown[]; arrayKey: string | null } => {
   if (Array.isArray(data)) return { rows: data, arrayKey: null };
   if (typeof data !== 'object' || data === null) return { rows: [], arrayKey: null };
+  // typeof + null チェック済み。TypeScript は unknown→Record への絞り込みを推論できないためキャストする。
   for (const [key, val] of Object.entries(data as Record<string, unknown>)) {
     if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object') {
       return { rows: val, arrayKey: key };
@@ -59,6 +66,7 @@ const extractAddressFromRow = (
     }
     const val = fieldPath.split('.').reduce((obj: unknown, k) => {
       if (obj == null || typeof obj !== 'object') return undefined;
+      // null かつ object チェック済み。unknown のままではプロパティアクセスできないためキャストする。
       return (obj as Record<string, unknown>)[k];
     }, row);
     if (typeof val === 'string' && val !== '') return val;

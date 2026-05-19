@@ -8,8 +8,12 @@ import type { JSX } from 'react';
 const escapeRegex = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * text 内の query にマッチする部分を <mark> で囲んだ JSX を返す。
- * query が空の場合はそのままテキストノードを返す。
+ * text 内の query にマッチする部分を &lt;mark&gt; で囲んだ JSX を返す。
+ *
+ * @param text - 検索対象のテキスト
+ * @param query - 検索クエリ。空文字の場合はそのままテキストノードを返す
+ * @param caseSensitive - true のとき大文字小文字を区別する
+ * @returns ハイライト済み JSX
  */
 export const highlightText = (text: string, query: string, caseSensitive: boolean): JSX.Element => {
   if (!query) return <>{text}</>;
@@ -29,7 +33,14 @@ export const highlightText = (text: string, query: string, caseSensitive: boolea
   );
 };
 
-/** text が query を含むかどうかを返す（ページをまたいだ一致数カウント用）。 */
+/**
+ * text が query を含むかどうかを返す（ページをまたいだ一致数カウント用）。
+ *
+ * @param text - 検索対象のテキスト
+ * @param query - 検索クエリ。空文字の場合は常に false を返す
+ * @param caseSensitive - true のとき大文字小文字を区別する
+ * @returns query が text に含まれる場合 true
+ */
 export const testMatch = (text: string, query: string, caseSensitive: boolean): boolean => {
   if (!query) return false;
   return new RegExp(escapeRegex(query), caseSensitive ? '' : 'i').test(text);

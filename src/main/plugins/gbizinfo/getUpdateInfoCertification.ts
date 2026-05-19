@@ -10,5 +10,5 @@ export const getUpdateInfoCertification: Plugin<unknown, {
   getUpdateInfoCertification(params: GBizUpdateInfoParams): Promise<unknown>;
 }> = (client) => ({
   getUpdateInfoCertification: (params) =>
-    client.get('/hojin/updateInfo/certification', params as Record<string, unknown>),
+    client.get('/hojin/updateInfo/certification', params),
 });

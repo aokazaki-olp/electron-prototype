@@ -279,12 +279,14 @@ const walk = (node: unknown, segments: string[]): unknown => {
     }
     if (seg.endsWith('[]')) {
       const key = seg.slice(0, -2);
+      // current は null チェック済み。unknown のままではプロパティアクセスできないためキャストする。
       const arr = (current as Record<string, unknown>)[key];
       if (!Array.isArray(arr) || arr.length === 0) {
         return undefined;
       }
       current = arr[0];
     } else {
+      // 同上：null チェック済みの unknown を Record としてアクセスする。
       current = (current as Record<string, unknown>)[seg];
     }
   }

@@ -11,5 +11,5 @@ export const getUpdateInfoCorporation: Plugin<unknown, {
 }> = (client) => ({
   getUpdateInfoCorporation: (params) =>
     // v2 では /updateInfo/corporation （v1 では /updateInfo/corporation_info）
-    client.get('/hojin/updateInfo/corporation', params as Record<string, unknown>),
+    client.get('/hojin/updateInfo/corporation', params),
 });

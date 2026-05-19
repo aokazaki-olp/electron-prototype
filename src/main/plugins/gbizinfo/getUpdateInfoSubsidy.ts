@@ -10,5 +10,5 @@ export const getUpdateInfoSubsidy: Plugin<unknown, {
   getUpdateInfoSubsidy(params: GBizUpdateInfoParams): Promise<unknown>;
 }> = (client) => ({
   getUpdateInfoSubsidy: (params) =>
-    client.get('/hojin/updateInfo/subsidy', params as Record<string, unknown>),
+    client.get('/hojin/updateInfo/subsidy', params),
 });

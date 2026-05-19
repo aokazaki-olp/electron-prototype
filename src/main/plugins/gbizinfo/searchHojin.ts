@@ -10,5 +10,5 @@ export const searchHojin: Plugin<unknown, {
   searchHojin(params: GBizSearchHojinParams): Promise<unknown>;
 }> = (client) => ({
   // baseUrl は .../hojin/v2 (API ルート)。検索リソースはその下の /hojin。
-  searchHojin: (params) => client.get('/hojin', params as Record<string, unknown>),
+  searchHojin: (params) => client.get('/hojin', params),
 });

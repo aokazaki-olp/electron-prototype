@@ -279,6 +279,21 @@ const AddressPanel = ({
 };
 
 // ============================================================================
+// ユーティリティ（App から使用）
+// ============================================================================
+
+/** レスポンスが空配列しか持たない場合（該当データなし）を検出する */
+const isResponseEmpty = (data: unknown): boolean => {
+  if (data == null || typeof data !== 'object') {
+    return false;
+  }
+  // typeof + null チェック済み。TypeScript は object → Record への絞り込みを推論できないためキャストする。
+  return Object.values(data as Record<string, unknown>).some(
+    (v) => Array.isArray(v) && v.length === 0,
+  );
+};
+
+// ============================================================================
 // App
 // ============================================================================
 
@@ -598,16 +613,6 @@ const App = (): JSX.Element => {
         </div>
       ) : null}
     </div>
-  );
-};
-
-/** レスポンスが空配列しか持たない場合（該当データなし）を検出する */
-const isResponseEmpty = (data: unknown): boolean => {
-  if (data == null || typeof data !== 'object') {
-    return false;
-  }
-  return Object.values(data as Record<string, unknown>).some(
-    (v) => Array.isArray(v) && v.length === 0,
   );
 };
 

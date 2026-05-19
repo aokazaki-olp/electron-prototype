@@ -46,10 +46,16 @@ const assertObjectArg = (channel: string, arg: unknown): Record<string, unknown>
   if (typeof arg !== 'object' || arg === null || Array.isArray(arg)) {
     throw new TypeError(`${channel}: 引数には object を指定してください`);
   }
+  // 型ガードで object かつ非 null かつ非 Array を確認済み。TypeScript は unknown→ Record への絞り込みを型述語なしでは推論できないためキャストする。
   return arg as Record<string, unknown>;
 };
 
-/** URL が http(s) で始まるか判定する。index.ts の setWindowOpenHandler と共有する。 */
+/**
+ * URL が http(s) で始まるか判定する。index.ts の setWindowOpenHandler と共有する。
+ *
+ * @param url - 判定対象の URL 文字列
+ * @returns http(s):// で始まる場合 true
+ */
 export const isExternalUrl = (url: string): boolean =>
   url.startsWith('https://') || url.startsWith('http://');
 

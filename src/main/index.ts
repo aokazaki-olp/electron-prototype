@@ -54,6 +54,7 @@ const setupServices = async (): Promise<void> => {
   // normalize-japanese-addresses v3 は ESM。dynamic import で main プロセスでのみ読み込む。
   const nja = await import('@geolonia/normalize-japanese-addresses');
   const address = createAddressService({
+    // dynamic import の戻り値は型が広く推論されるため、normalize の実際の戻り値型に明示的に合わせる。
     normalize: (addr) =>
       nja.normalize(addr) as Promise<Awaited<ReturnType<typeof nja.normalize>>>,
   });
