@@ -26,9 +26,17 @@ import {
  * @param e - 任意の例外
  * @returns renderer へ送る Error
  */
+const safeJsonStringify = (value: unknown): string => {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
 const toIpcError = (e: unknown): Error => {
   if (e instanceof HttpError) {
-    const bodyStr = e.body != null ? ` — ${JSON.stringify(e.body)}` : '';
+    const bodyStr = e.body != null ? ` — ${safeJsonStringify(e.body)}` : '';
     return new Error(`HTTP ${e.status}: ${e.message}${bodyStr}`);
   }
   return e instanceof Error ? e : new Error(String(e));
@@ -41,11 +49,12 @@ const assertObjectArg = (channel: string, arg: unknown): Record<string, unknown>
   return arg as Record<string, unknown>;
 };
 
-const HTTPS_PREFIX = 'https://';
-const HTTP_PREFIX = 'http://';
+/** URL が http(s) で始まるか判定する。index.ts の setWindowOpenHandler と共有する。 */
+export const isExternalUrl = (url: string): boolean =>
+  url.startsWith('https://') || url.startsWith('http://');
 
 const assertExternalUrl = (url: unknown): string => {
-  if (typeof url !== 'string' || (!url.startsWith(HTTPS_PREFIX) && !url.startsWith(HTTP_PREFIX))) {
+  if (typeof url !== 'string' || !isExternalUrl(url)) {
     throw new TypeError('openExternal: url には http(s) で始まる string を指定してください');
   }
   return url;

@@ -13,7 +13,7 @@ import log from 'electron-log/main';
 import { LoggerFacade } from '../libs/LoggerFacade.js';
 import { createGBizInfoService } from './GBizInfoService.js';
 import { createAddressService } from './AddressService.js';
-import { registerIpcHandlers } from './ipcHandlers.js';
+import { registerIpcHandlers, isExternalUrl } from './ipcHandlers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -33,8 +33,7 @@ const createWindow = (): void => {
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    // ipcHandlers の assertExternalUrl と同等のバリデーションをここでも適用する
-    if (url.startsWith('https://') || url.startsWith('http://')) {
+    if (isExternalUrl(url)) {
       void shell.openExternal(url);
     }
     return { action: 'deny' };
@@ -62,8 +61,15 @@ const setupServices = async (): Promise<void> => {
   registerIpcHandlers({ gbiz, address });
 };
 
-app.whenReady().then(async () => {
-  await setupServices();
+void (async () => {
+  await app.whenReady();
+  try {
+    await setupServices();
+  } catch (e) {
+    log.error('サービス初期化に失敗しました。アプリを終了します。', e);
+    app.quit();
+    return;
+  }
   createWindow();
 
   app.on('activate', () => {
@@ -71,7 +77,7 @@ app.whenReady().then(async () => {
       createWindow();
     }
   });
-});
+})();
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

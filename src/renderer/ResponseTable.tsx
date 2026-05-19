@@ -117,8 +117,9 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
     return [...keys];
   }, [rows]);
 
-  // rows・件数が変わったら先頭に戻し、検索もリセットする
-  useEffect(() => { setPage(0); setSearchQuery(''); }, [rows, pageSize]);
+  // rows が変わったら先頭へ戻し検索もリセット。pageSize 変更は先頭リセットのみ。
+  useEffect(() => { setPage(0); setSearchQuery(''); }, [rows]);
+  useEffect(() => { setPage(0); }, [pageSize]);
 
   useEffect(() => {
     const paths = endpoint.addressFieldPaths;
@@ -153,21 +154,33 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
     })();
   }, [page, pageSize, rows, endpoint.addressFieldPaths, arrayKey]);
 
-  // 全行を対象とした一致行数（ページをまたいで集計）
+  // addressFieldPaths を事前に取り出すことで !（非 null アサーション）を使わずに済む
+  const paths = endpoint.addressFieldPaths;
+  const hasAddress = !!paths;
+  const hasCorporateColumn = columns.includes('corporate_number') && !!onSelectCorporate;
+
+  // データカラム + キャッシュ済み NJA カラムの両方を対象にした一致行数
   const matchRowCount = useMemo(() => {
     if (!searchQuery) return 0;
     return rows.filter((row) => {
       if (typeof row !== 'object' || row === null) return false;
-      return columns.some((col) =>
+      const dataMatch = columns.some((col) =>
         testMatch(renderCell((row as Record<string, unknown>)[col]), searchQuery, caseSensitive),
       );
+      if (dataMatch) return true;
+      if (!paths) return false;
+      const addr = extractAddressFromRow(row, paths, arrayKey);
+      if (!addr) return false;
+      const njaResult = njaResults.get(addr);
+      if (!njaResult) return false;
+      return NJA_COL_DEFS.some((def) =>
+        testMatch(getNjaValue(njaResult, def.key), searchQuery, caseSensitive),
+      );
     }).length;
-  }, [rows, columns, searchQuery, caseSensitive]);
+  }, [rows, columns, searchQuery, caseSensitive, njaResults, paths, arrayKey]);
 
   if (rows.length === 0) return null;
 
-  const hasAddress = !!endpoint.addressFieldPaths;
-  const hasCorporateColumn = columns.includes('corporate_number') && !!onSelectCorporate;
   const pageCount = Math.ceil(rows.length / pageSize);
   const currentRows = rows.slice(page * pageSize, (page + 1) * pageSize);
   const rangeStart = page * pageSize + 1;
@@ -309,8 +322,8 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
           </thead>
           <tbody>
             {currentRows.map((row, i) => {
-              const addr = hasAddress
-                ? extractAddressFromRow(row, endpoint.addressFieldPaths!, arrayKey)
+              const addr = paths
+                ? extractAddressFromRow(row, paths, arrayKey)
                 : undefined;
               const njaResult = addr ? njaResults.get(addr) : undefined;
               const corpNumber = hasCorporateColumn
@@ -318,13 +331,13 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
                 : undefined;
 
               return (
-                <tr key={i} className="hover:bg-slate-50">
+                <tr key={page * pageSize + i} className="hover:bg-slate-50">
                   {hasCorporateColumn ? (
                     <td className="px-2 py-1 border border-slate-200 whitespace-nowrap">
                       {typeof corpNumber === 'string' ? (
                         <button
                           type="button"
-                          onClick={() => onSelectCorporate!(corpNumber)}
+                          onClick={() => onSelectCorporate?.(corpNumber)}
                           className="px-2 py-1 text-xs bg-amber-500 text-white rounded hover:bg-amber-600 font-medium"
                         >
                           選択

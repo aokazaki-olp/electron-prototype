@@ -408,6 +408,15 @@ const App = (): JSX.Element => {
     showToast(`法人番号 ${corpNumber} を設定しました。他のエンドポイントに切り替えると自動入力されます。`);
   };
 
+  // アンマウント時にタイマーをクリアする
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
   // レスポンスがクリアされたら NJA 結果もリセットする
   useEffect(() => {
     if (response == null) {

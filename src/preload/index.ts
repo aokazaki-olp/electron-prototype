@@ -14,7 +14,7 @@ import {
 } from '../ipc/contract.js';
 import type { GBizApi, NjaApi, ShellApi } from '../ipc/contract.js';
 
-// 18 メソッドを動的合成。.use() で組み立てた main 側と対称。
+// 19 メソッドを動的合成。.use() で組み立てた main 側と対称。
 // Object.fromEntries の戻り値型は動的合成のため GBizApi と一致しない。
 // GBIZ_CHANNELS と contract.ts の型は対称なので型安全は担保されており、
 // satisfies ではなく as unknown as GBizApi でキャストする（preload 内に閉じ込める §7.4）。
