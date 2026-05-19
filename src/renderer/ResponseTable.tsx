@@ -11,6 +11,7 @@ import ReactPaginate from 'react-paginate';
 import type { NjaResult } from '../ipc/contract.js';
 import type { EndpointDef } from './endpoints.js';
 import { highlightText, testMatch } from './highlight.js';
+import { toColumnLabel } from './columnLabels.js';
 
 const PAGE_SIZES = [10, 20, 50, 100] as const;
 type PageSize = (typeof PAGE_SIZES)[number];
@@ -297,7 +298,7 @@ export const ResponseTable = ({ data, endpoint, onSelectCorporate }: Props): JSX
                   title={col}
                   className="bg-slate-200 px-2 py-1 text-left font-semibold whitespace-nowrap border border-slate-300 cursor-help"
                 >
-                  {col}
+                  {toColumnLabel(col)}
                 </th>
               ))}
               {hasAddress &&
