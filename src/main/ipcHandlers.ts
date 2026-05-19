@@ -30,6 +30,8 @@ const safeJsonStringify = (value: unknown): string => {
   try {
     return JSON.stringify(value);
   } catch {
+    // BigInt や循環参照など JSON.stringify が投げるケースはフォールバック文字列にする。
+    // String(value) は循環参照でも安全に "[object Object]" を返す。
     return String(value);
   }
 };

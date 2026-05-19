@@ -28,6 +28,13 @@ const groupByCategory = (): Record<EndpointCategory, EndpointDef[]> => {
 // エラーメッセージの人間語化
 // ============================================================================
 
+/**
+ * API エラーメッセージを日本語の案内文に変換する。
+ * マッチしない場合は元のメッセージをそのまま返す。
+ *
+ * @param msg - Error.message 文字列
+ * @returns ユーザー向けの日本語メッセージ
+ */
 const humanizeError = (msg: string): string => {
   if (msg.startsWith('HTTP 400')) return '入力値が不正です。パラメータを確認してください。';
   if (msg.startsWith('HTTP 401')) return '認証エラーです。APIトークンを確認してください。';
@@ -83,7 +90,8 @@ const validate = (endpoint: EndpointDef, form: FormState): string | null => {
   }
   const from = form['from'];
   const to = form['to'];
-  if (from && to && from > to) {
+  // YYYY-MM-DD 文字列は辞書順 = 時系列順だが、Date オブジェクトで比較し意図を明示する。
+  if (from && to && new Date(from) > new Date(to)) {
     return '期間開始日は期間終了日より前の日付を指定してください';
   }
   return null;
