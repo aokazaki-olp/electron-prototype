@@ -4,6 +4,7 @@
  */
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { handleCallbackUrl } from './sfOAuth.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { initLogger, initAuditLogger, log, getRecentLogs } from './logger.js';
@@ -30,6 +31,35 @@ import { IPC } from '../ipc/contract.js';
 import type { CsvExportOptions, LogEntry } from '../ipc/contract.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// ============================================================================
+// シングルインスタンス + カスタムURLスキーム
+// ============================================================================
+
+// Windows: 2つ目の起動を防ぎ、URLを最初のインスタンスに転送する
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+}
+
+app.on('second-instance', (_event, argv) => {
+  // Windows では argv の末尾に sfexplorer:// URL が入る
+  const url = argv.find(a => a.startsWith('sfexplorer://'));
+  if (url) {
+    handleCallbackUrl(url);
+  }
+  // ウィンドウを前面に出す
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
+// Mac では open-url イベントで届く
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleCallbackUrl(url);
+});
 
 // ============================================================================
 // ログ初期化
@@ -69,6 +99,7 @@ const createWindow = (): void => {
 };
 
 app.whenReady().then(() => {
+  app.setAsDefaultProtocolClient('sfexplorer');
   registerIpcHandlers();
   createWindow();
 

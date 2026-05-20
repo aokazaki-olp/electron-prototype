@@ -3,7 +3,6 @@
  * @description Salesforce OAuth 2.0 Web Server Flow + PKCE (S256) + state
  */
 
-import { createServer } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 import { URL } from 'node:url';
 import { shell } from 'electron';
@@ -18,9 +17,7 @@ import {
   deleteRefreshToken,
 } from './settings.js';
 
-const CALLBACK_PORT = 8787;
-const CALLBACK_PATH = '/callback';
-const REDIRECT_URI = `http://localhost:${CALLBACK_PORT}${CALLBACK_PATH}`;
+const REDIRECT_URI = 'sfexplorer://callback';
 
 // アクセストークン・インスタンスURLをメモリで保持（profileId単位）
 const accessTokenMap = new Map<string, string>();
@@ -81,75 +78,79 @@ const exchangeToken = async (
 };
 
 // ============================================================================
-// コールバックサーバー
+// カスタムURLスキームによるコールバック受け取り
 // ============================================================================
+
+interface PendingCallback {
+  resolve: (code: string) => void;
+  reject: (err: Error) => void;
+  state: string;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+let pendingCallback: PendingCallback | null = null;
+
+/**
+ * OSから渡された sfexplorer:// URLを処理する。
+ * main/index.ts の second-instance / open-url ハンドラから呼ぶ。
+ */
+export const handleCallbackUrl = (url: string): void => {
+  if (!pendingCallback) {
+    log.warn('[OAuth] コールバックURLを受け取ったが待機中の認証がありません');
+    return;
+  }
+
+  const { resolve, reject, state: expectedState, timer } = pendingCallback;
+  pendingCallback = null;
+  clearTimeout(timer);
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    reject(new Error(`コールバックURLの解析に失敗しました: ${url}`));
+    return;
+  }
+
+  const error = parsed.searchParams.get('error');
+  if (error) {
+    const desc = parsed.searchParams.get('error_description') ?? error;
+    reject(new Error(`OAuth エラー: ${desc}`));
+    return;
+  }
+
+  const returnedState = parsed.searchParams.get('state');
+  if (returnedState !== expectedState) {
+    reject(new Error('state パラメータが一致しません (CSRF対策)'));
+    return;
+  }
+
+  const code = parsed.searchParams.get('code');
+  if (!code) {
+    reject(new Error('認証コードが取得できませんでした'));
+    return;
+  }
+
+  resolve(code);
+};
 
 const waitForCallback = (expectedState: string): Promise<string> =>
   new Promise((resolve, reject) => {
-    const server = createServer((req, res) => {
-      if (!req.url) {
-        return;
+    // 前の認証が残っていたらキャンセル
+    if (pendingCallback) {
+      clearTimeout(pendingCallback.timer);
+      pendingCallback.reject(new Error('新しい認証が開始されました'));
+    }
+
+    const timer = setTimeout(() => {
+      if (pendingCallback?.state === expectedState) {
+        pendingCallback = null;
+        reject(new Error('OAuth 認証がタイムアウトしました (90秒)'));
       }
-
-      const url = new URL(req.url, `http://localhost:${CALLBACK_PORT}`);
-      if (url.pathname !== CALLBACK_PATH) {
-        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(html('設定エラー: loginUrl が正しくありません。Salesforce の URL（例: https://login.salesforce.com）を設定してください。'));
-        server.close();
-        reject(new Error(`loginUrl の設定が誤っています。Salesforce の URL（例: https://login.salesforce.com）を指定してください。`));
-        return;
-      }
-
-      const returnedState = url.searchParams.get('state');
-      const code = url.searchParams.get('code');
-      const error = url.searchParams.get('error');
-
-      const html = (msg: string) =>
-        `<html><body><p>${msg}</p><script>window.close()</script></body></html>`;
-
-      if (error) {
-        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(html(`認証エラー: ${error}`));
-        server.close();
-        reject(new Error(`OAuth エラー: ${error}`));
-        return;
-      }
-
-      if (returnedState !== expectedState) {
-        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(html('state不一致 — 認証を中断しました'));
-        server.close();
-        reject(new Error('state パラメータが一致しません (CSRF対策)'));
-        return;
-      }
-
-      if (!code) {
-        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(html('認証コードが取得できませんでした'));
-        server.close();
-        reject(new Error('認証コードが取得できませんでした'));
-        return;
-      }
-
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html('認証完了。このタブを閉じてください。'));
-      server.close();
-      resolve(code);
-    });
-
-    server.listen(CALLBACK_PORT, 'localhost', () => {
-      log.debug(`[OAuth] コールバックサーバー起動: port=${CALLBACK_PORT}`);
-    });
-
-    server.on('error', (e) => {
-      reject(new Error(`コールバックサーバー起動失敗: ${e.message} (ポート${CALLBACK_PORT}が使用中の可能性があります)`));
-    });
-
-    // 90秒でタイムアウト
-    setTimeout(() => {
-      server.close();
-      reject(new Error('OAuth 認証がタイムアウトしました (90秒)'));
     }, 90 * 1000);
+
+    pendingCallback = { resolve, reject, state: expectedState, timer };
+    log.debug('[OAuth] コールバック待機開始');
   });
 
 // ============================================================================

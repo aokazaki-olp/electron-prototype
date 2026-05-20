@@ -5,5 +5,9 @@ directories:
 files:
   - out/**
   - package.json
+protocols:
+  - name: Salesforce Explorer
+    schemes:
+      - sfexplorer
 win:
   target: portable
