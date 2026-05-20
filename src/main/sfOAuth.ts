@@ -145,11 +145,11 @@ const waitForCallback = (expectedState: string): Promise<string> =>
       reject(new Error(`コールバックサーバー起動失敗: ${e.message} (ポート${CALLBACK_PORT}が使用中の可能性があります)`));
     });
 
-    // 5分でタイムアウト
+    // 90秒でタイムアウト
     setTimeout(() => {
       server.close();
-      reject(new Error('OAuth 認証がタイムアウトしました (5分)'));
-    }, 5 * 60 * 1000);
+      reject(new Error('OAuth 認証がタイムアウトしました (90秒)'));
+    }, 90 * 1000);
   });
 
 // ============================================================================
