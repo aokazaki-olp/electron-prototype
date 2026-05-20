@@ -6,7 +6,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { handleCallbackUrl } from './sfOAuth.js';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { initLogger, initAuditLogger, log, getRecentLogs } from './logger.js';
 import { loadProfiles, saveProfile, deleteProfile, loadSettings, saveSettings } from './settings.js';
 import {
@@ -99,7 +99,14 @@ const createWindow = (): void => {
 };
 
 app.whenReady().then(() => {
-  app.setAsDefaultProtocolClient('sfexplorer');
+  // Windows開発環境では process.argv[1] を渡さないと URL がアプリパスとして解釈される
+  if (process.platform === 'win32') {
+    app.setAsDefaultProtocolClient('sfexplorer', process.execPath, [
+      resolve(process.argv[1] ?? ''),
+    ]);
+  } else {
+    app.setAsDefaultProtocolClient('sfexplorer');
+  }
   registerIpcHandlers();
   createWindow();
 
