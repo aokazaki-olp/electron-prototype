@@ -93,8 +93,10 @@ const waitForCallback = (expectedState: string): Promise<string> =>
 
       const url = new URL(req.url, `http://localhost:${CALLBACK_PORT}`);
       if (url.pathname !== CALLBACK_PATH) {
-        res.writeHead(404);
-        res.end();
+        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(html('設定エラー: loginUrl が正しくありません。Salesforce の URL（例: https://login.salesforce.com）を設定してください。'));
+        server.close();
+        reject(new Error(`loginUrl の設定が誤っています。Salesforce の URL（例: https://login.salesforce.com）を指定してください。`));
         return;
       }
 
