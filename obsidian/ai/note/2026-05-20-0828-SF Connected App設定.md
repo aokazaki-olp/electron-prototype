@@ -31,7 +31,7 @@ Salesforce Explorer（本プロトタイプ）用の Connected App を作成・�
 - **Enable for Device Flow**: ❌ チェックしない（2025年9月廃止済み）
 - **Callback URL**:
   ```
-  http://localhost:8787/callback
+  sfexplorer://callback
   ```
 - **Selected OAuth Scopes**:
   - `api` — Manage user data via APIs (api)
@@ -120,7 +120,7 @@ Setup → App Manager → [アプリ名] → Manage → Install in this Org
 
 | エラー | 原因 | 対処 |
 |--------|------|------|
-| `redirect_uri_mismatch` | Callback URL が一致しない | Connected App の Callback URL を `http://localhost:8787/callback` に設定 |
+| `redirect_uri_mismatch` | Callback URL が一致しない | Connected App の Callback URL を `sfexplorer://callback` に設定 |
 | `insufficient_access` | App が未インストール | §3 の手順でインストール |
 | `invalid_client` | Client ID が間違い | Consumer Key を再確認 |
 | `invalid_grant` | Refresh Token が失効 | 再認証（startOAuth）を実行 |
