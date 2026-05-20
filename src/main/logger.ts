@@ -6,6 +6,8 @@
 import log from 'electron-log';
 import { join } from 'node:path';
 import { app } from 'electron';
+import type { Logger } from '../libs/LoggerFacade.js';
+import type { LogEntry } from '../ipc/contract.js';
 
 const MASK_PATTERN = /(access_token|refresh_token|Authorization|clientSecret|code)[=:\s"]+\S+/gi;
 const MASK_REPLACEMENT = '$1=***';
@@ -22,6 +24,15 @@ const maskSensitive = (value: unknown): unknown => {
   return value;
 };
 
+// ============================================================================
+// 起動前ログのリングバッファ（GET_RECENT_LOGS 用）
+// ============================================================================
+
+const LOG_BUFFER_SIZE = 200;
+const logBuffer: LogEntry[] = [];
+
+export const getRecentLogs = (): LogEntry[] => [...logBuffer];
+
 export const initLogger = (): void => {
   const logDir = app.getPath('logs');
 
@@ -29,12 +40,25 @@ export const initLogger = (): void => {
   log.transports.file.level = 'debug';
   log.transports.console.level = 'debug';
 
-  // 機密情報マスクフック（ファイル・コンソール両方に適用）
-  log.hooks.push((message) => ({
-    ...message,
-    data: message.data.map(maskSensitive),
-  }));
+  // 機密情報マスク + リングバッファへの追記を1フックで処理
+  log.hooks.push((message) => {
+    const maskedData = message.data.map(maskSensitive);
+    const entry: LogEntry = {
+      date: message.date.toISOString(),
+      level: message.level as LogEntry['level'],
+      text: maskedData.map(String).join(' '),
+    };
+    if (logBuffer.length >= LOG_BUFFER_SIZE) {
+      logBuffer.shift();
+    }
+    logBuffer.push(entry);
+    return { ...message, data: maskedData };
+  });
 };
+
+// ============================================================================
+// 監査ログ
+// ============================================================================
 
 // 監査ログ専用インスタンス
 const auditLogger = log.create({ logId: 'audit' });
@@ -55,8 +79,6 @@ export const auditLog = (
   const suffix = recordsAffected != null ? ` | records=${recordsAffected}` : '';
   auditLogger.info(`[AUDIT] ${operation} | profile=${profileName} | ${detail}${suffix}`);
 };
-
-import type { Logger } from '../libs/LoggerFacade.js';
 
 /** electron-log を libs/Logger インターフェースに適合させるアダプター */
 export const appLogger: Logger = {

@@ -7,6 +7,7 @@ import { createServer } from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 import { URL } from 'node:url';
 import { shell } from 'electron';
+import { got } from 'got';
 import { log } from './logger.js';
 import {
   saveRefreshToken,
@@ -51,7 +52,6 @@ const exchangeToken = async (
   clientId: string,
   params: Record<string, string>,
 ): Promise<TokenResponse> => {
-  const { got } = await import('got');
   const tokenUrl = `${loginUrl}/services/oauth2/token`;
 
   const body: Record<string, string> = {

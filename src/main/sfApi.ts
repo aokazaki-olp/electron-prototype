@@ -84,8 +84,14 @@ const getClient = (profileId: string) => {
 // 読み取り系
 // ============================================================================
 
+// SF は nextRecordsUrl を /services/data/vXX.X/query/... 形式で返す。
+// baseUrl が既に /services/data/vXX.X を含むため、そのまま渡すとパスが二重になる。
+const toRelativeEndpoint = (nextRecordsUrl: string): string =>
+  nextRecordsUrl.replace(/^\/services\/data\/v\d+\.\d+/, '');
+
 export const listSObjects = async (profileId: string): Promise<SObjectSummary[]> => {
   const client = getClient(profileId);
+  // ランタイムガード: 直後の Array.isArray チェックで構造を保証する
   const res = await client.get('/sobjects') as { sobjects: unknown[] };
 
   if (!Array.isArray(res?.sobjects)) {
@@ -115,6 +121,7 @@ export const describeObject = async (profileId: string, objectName: string): Pro
   }
 
   const client = getClient(profileId);
+  // ランタイムガード: 各フィールドは String()/Boolean()/Array.isArray() で型変換する
   const res = await client.get(`/sobjects/${objectName}/describe`) as Record<string, unknown>;
 
   const toFields = (raw: unknown[]): FieldDescribe[] =>
@@ -171,6 +178,7 @@ export const query = async (
   const client = getClient(profileId);
   const records: Record<string, unknown>[] = [];
 
+  // ランタイムガード: records/done/totalSize は直後の push/while で使用前に存在を前提とする
   let res = await client.get('/query', { q: soql }) as {
     totalSize: number;
     done: boolean;
@@ -181,7 +189,8 @@ export const query = async (
   records.push(...res.records);
 
   while (!res.done && res.nextRecordsUrl && (maxRows === 0 || records.length < maxRows)) {
-    res = await client.get(res.nextRecordsUrl) as typeof res;
+    // nextRecordsUrl の /services/data/vXX.X プレフィックスを除去して baseUrl の二重化を防ぐ
+    res = await client.get(toRelativeEndpoint(res.nextRecordsUrl)) as typeof res;
     records.push(...res.records);
   }
 
@@ -223,6 +232,7 @@ export const createRecord = async (
 ): Promise<string> => {
   assertWriteAllowed(profileId);
   const client = getClient(profileId);
+  // ランタイムガード: SF は成功時に必ず { id: string } を返す (REST API仕様)
   const res = await client.post(`/sobjects/${objectName}/`, fields) as { id: string };
 
   auditLog(getProfile(profileId)!.name, 'CREATE', `${objectName}`, 1);

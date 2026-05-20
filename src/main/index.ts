@@ -6,7 +6,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { initLogger, initAuditLogger, log } from './logger.js';
+import { initLogger, initAuditLogger, log, getRecentLogs } from './logger.js';
 import { loadProfiles, saveProfile, deleteProfile, loadSettings, saveSettings } from './settings.js';
 import {
   startOAuth,
@@ -24,7 +24,6 @@ import {
   setCurrentProfile,
   markWriteSession,
   clearWriteSession,
-  WRITE_REQUIRED,
 } from './sfApi.js';
 import { exportCsv, exportQueryExcel, exportObjectDefinition } from './export.js';
 import { IPC } from '../ipc/contract.js';
@@ -240,5 +239,5 @@ const registerIpcHandlers = (): void => {
   });
 
   // ログ
-  handle(IPC.GET_RECENT_LOGS, async () => []);
+  handle(IPC.GET_RECENT_LOGS, async () => getRecentLogs());
 };
