@@ -89,6 +89,22 @@ const getClient = (profileId: string) => {
 const toRelativeEndpoint = (nextRecordsUrl: string): string =>
   nextRecordsUrl.replace(/^\/services\/data\/v\d+\.\d+/, '');
 
+// SF レスポンスのネストしたリレーション項目（Owner.Name 等）をドット記法キーにフラット化する。
+// attributes（SF内部メタデータ）は除外する。
+const flattenRecord = (record: Record<string, unknown>, prefix = ''): Record<string, unknown> => {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(record)) {
+    if (key === 'attributes') continue;
+    const fullKey = prefix ? `${prefix}.${key}` : key;
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      Object.assign(result, flattenRecord(value as Record<string, unknown>, fullKey));
+    } else {
+      result[fullKey] = value;
+    }
+  }
+  return result;
+};
+
 export const listSObjects = async (profileId: string): Promise<SObjectSummary[]> => {
   const client = getClient(profileId);
   // ランタイムガード: 直後の Array.isArray チェックで構造を保証する
@@ -194,7 +210,8 @@ export const query = async (
     records.push(...res.records);
   }
 
-  const fetched = maxRows === 0 ? records : records.slice(0, maxRows);
+  const fetched = (maxRows === 0 ? records : records.slice(0, maxRows))
+    .map(r => flattenRecord(r));
 
   log.info(`[SF] クエリ完了: ${fetched.length}件取得 (totalSize=${res.totalSize})`);
 
