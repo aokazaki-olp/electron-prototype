@@ -6,6 +6,14 @@
 import { create } from 'zustand';
 import type { SfConnectionProfile, SObjectSummary, LogEntry, AppSettings } from '../ipc/contract.js';
 
+export interface SoqlTab {
+  id: string;
+  name: string;
+  soql: string;
+}
+
+const DEFAULT_TAB: SoqlTab = { id: 'tab-1', name: 'クエリ 1', soql: '' };
+
 interface AppStore {
   // 設定
   settings: AppSettings | null;
@@ -18,8 +26,9 @@ interface AppStore {
   selectedObject: string | null;
   sobjectsLoading: boolean;
 
-  // SOQLエディタ
-  soql: string;
+  // SOQLエディタ（タブ）
+  tabs: SoqlTab[];
+  activeTabId: string;
   queryLoading: boolean;
   runTrigger: number;
 
@@ -39,9 +48,13 @@ interface AppStore {
   incrementRunTrigger: () => void;
   appendLog: (entry: LogEntry) => void;
   setLogs: (entries: LogEntry[]) => void;
+  addTab: () => void;
+  closeTab: (id: string) => void;
+  setActiveTabId: (id: string) => void;
+  loadTabs: (tabs: SoqlTab[], activeTabId: string) => void;
 }
 
-export const useAppStore = create<AppStore>((set) => ({
+export const useAppStore = create<AppStore>((set, get) => ({
   settings: null,
   profiles: [],
   activeProfileId: null,
@@ -49,7 +62,8 @@ export const useAppStore = create<AppStore>((set) => ({
   sobjects: [],
   selectedObject: null,
   sobjectsLoading: false,
-  soql: '',
+  tabs: [DEFAULT_TAB],
+  activeTabId: DEFAULT_TAB.id,
   queryLoading: false,
   runTrigger: 0,
   logs: [],
@@ -61,9 +75,32 @@ export const useAppStore = create<AppStore>((set) => ({
   setSobjects: (sobjects) => set({ sobjects }),
   setSelectedObject: (selectedObject) => set({ selectedObject }),
   setSobjectsLoading: (sobjectsLoading) => set({ sobjectsLoading }),
-  setSoql: (soql) => set({ soql }),
+  setSoql: (soql) => set((s) => ({
+    tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, soql } : t),
+  })),
   setQueryLoading: (queryLoading) => set({ queryLoading }),
   incrementRunTrigger: () => set((s) => ({ runTrigger: s.runTrigger + 1 })),
   appendLog: (entry) => set((s) => ({ logs: [...s.logs.slice(-999), entry] })),
   setLogs: (logs) => set({ logs }),
+
+  addTab: () => set((s) => {
+    const id = `tab-${Date.now()}`;
+    const n = s.tabs.length + 1;
+    const tab: SoqlTab = { id, name: `クエリ ${n}`, soql: '' };
+    return { tabs: [...s.tabs, tab], activeTabId: id };
+  }),
+
+  closeTab: (id) => set((s) => {
+    if (s.tabs.length <= 1) return s;
+    const idx = s.tabs.findIndex(t => t.id === id);
+    const next = s.tabs.filter(t => t.id !== id);
+    const nextActiveId = s.activeTabId === id
+      ? (next[Math.max(0, idx - 1)]?.id ?? next[0].id)
+      : s.activeTabId;
+    return { tabs: next, activeTabId: nextActiveId };
+  }),
+
+  setActiveTabId: (activeTabId) => set({ activeTabId }),
+
+  loadTabs: (tabs, activeTabId) => set({ tabs, activeTabId }),
 }));
