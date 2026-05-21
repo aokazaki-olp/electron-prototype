@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { MainPage } from './pages/MainPage.js';
 import { useAppStore } from './store.js';
@@ -6,6 +6,7 @@ import type { LogEntry } from '../ipc/contract.js';
 
 const App = (): JSX.Element => {
   const { authState, activeProfileId, setAuthState, setActiveProfileId, appendLog } = useAppStore();
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     // ログストリーミング購読
@@ -46,13 +47,29 @@ const App = (): JSX.Element => {
 
   if (authState === 'connected' && activeProfileId) {
     return (
-      <MainPage
-        onDisconnect={() => {
-          setActiveProfileId(null);
-          setAuthState('disconnected');
-        }}
-        onSettings={() => setAuthState('disconnected')}
-      />
+      <>
+        <MainPage
+          onDisconnect={() => {
+            setActiveProfileId(null);
+            setAuthState('disconnected');
+          }}
+          onSettings={() => setShowSettings(true)}
+        />
+        {showSettings && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+              <SettingsPage
+                onConnect={(profileId) => {
+                  setActiveProfileId(profileId);
+                  setAuthState('connected');
+                  setShowSettings(false);
+                }}
+                onClose={() => setShowSettings(false)}
+              />
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 

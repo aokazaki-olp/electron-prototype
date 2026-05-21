@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Wifi, WifiOff } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Wifi } from 'lucide-react';
 import { useAppStore } from '../store.js';
 import type { SfConnectionProfile, AppSettings } from '../../ipc/contract.js';
 
@@ -15,9 +15,10 @@ const newId = () => `profile-${Date.now()}`;
 
 interface Props {
   onConnect: (profileId: string) => void;
+  onClose?: () => void;
 }
 
-export const SettingsPage = ({ onConnect }: Props): JSX.Element => {
+export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
   const { profiles, setProfiles, settings, setSettings, setActiveProfileId, setAuthState } = useAppStore();
   const [editing, setEditing] = useState<SfConnectionProfile | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -84,9 +85,16 @@ export const SettingsPage = ({ onConnect }: Props): JSX.Element => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
+    <div className="bg-slate-50 p-8">
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold text-slate-800 mb-6">Salesforce Explorer — 設定</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-slate-800">Salesforce Explorer — 設定</h1>
+          {onClose && (
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+              <X size={20} />
+            </button>
+          )}
+        </div>
 
         {/* 接続プロファイル */}
         <section className="bg-white rounded-lg border border-slate-200 mb-6">
