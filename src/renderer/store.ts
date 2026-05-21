@@ -21,6 +21,7 @@ interface AppStore {
   // SOQLエディタ
   soql: string;
   queryLoading: boolean;
+  runTrigger: number;
 
   // ログビューアー
   logs: LogEntry[];
@@ -35,6 +36,7 @@ interface AppStore {
   setSobjectsLoading: (v: boolean) => void;
   setSoql: (s: string) => void;
   setQueryLoading: (v: boolean) => void;
+  incrementRunTrigger: () => void;
   appendLog: (entry: LogEntry) => void;
   setLogs: (entries: LogEntry[]) => void;
 }
@@ -49,6 +51,7 @@ export const useAppStore = create<AppStore>((set) => ({
   sobjectsLoading: false,
   soql: '',
   queryLoading: false,
+  runTrigger: 0,
   logs: [],
 
   setSettings: (settings) => set({ settings }),
@@ -60,6 +63,7 @@ export const useAppStore = create<AppStore>((set) => ({
   setSobjectsLoading: (sobjectsLoading) => set({ sobjectsLoading }),
   setSoql: (soql) => set({ soql }),
   setQueryLoading: (queryLoading) => set({ queryLoading }),
+  incrementRunTrigger: () => set((s) => ({ runTrigger: s.runTrigger + 1 })),
   appendLog: (entry) => set((s) => ({ logs: [...s.logs.slice(-999), entry] })),
   setLogs: (logs) => set({ logs }),
 }));

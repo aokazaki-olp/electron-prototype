@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Search, Table2, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../store.js';
 import type { SObjectDescribe } from '../../ipc/contract.js';
 
 export const SObjectBrowser = (): JSX.Element => {
-  const { sobjects, selectedObject, sobjectsLoading, setSobjects, setSelectedObject, setSobjectsLoading, setSoql } = useAppStore();
+  const { sobjects, selectedObject, sobjectsLoading, setSobjects, setSelectedObject, setSobjectsLoading, setSoql, incrementRunTrigger } = useAppStore();
   const [search, setSearch] = useState('');
   const [describe, setDescribe] = useState<SObjectDescribe | null>(null);
   const [describeLoading, setDescribeLoading] = useState(false);
+  const pendingRun = useRef(false);
 
   const loadSObjects = async () => {
     setSobjectsLoading(true);
@@ -36,8 +37,12 @@ export const SObjectBrowser = (): JSX.Element => {
     window.sfx.describeObject(selectedObject)
       .then(desc => {
         setDescribe(desc);
-        const fields = desc.fields.map(f => f.name).join(',\n  ');
-        setSoql(`SELECT\n  ${fields}\nFROM ${selectedObject}\nLIMIT 200`);
+        if (pendingRun.current) {
+          pendingRun.current = false;
+          const fields = desc.fields.map(f => f.name).join(',\n  ');
+          setSoql(`SELECT\n  ${fields}\nFROM ${selectedObject}\nLIMIT 200`);
+          incrementRunTrigger();
+        }
       })
       .catch(console.error)
       .finally(() => setDescribeLoading(false));
@@ -49,7 +54,19 @@ export const SObjectBrowser = (): JSX.Element => {
   );
 
   const handleSelectObject = (name: string) => {
+    pendingRun.current = false;
     setSelectedObject(name);
+  };
+
+  const handleDoubleClickObject = (name: string, desc: typeof describe) => {
+    if (desc && selectedObject === name) {
+      const fields = desc.fields.map(f => f.name).join(',\n  ');
+      setSoql(`SELECT\n  ${fields}\nFROM ${name}\nLIMIT 200`);
+      incrementRunTrigger();
+    } else {
+      pendingRun.current = true;
+      setSelectedObject(name);
+    }
   };
 
   const handleExportDefinition = async () => {
@@ -93,6 +110,7 @@ export const SObjectBrowser = (): JSX.Element => {
           <button
             key={o.name}
             onClick={() => handleSelectObject(o.name)}
+            onDoubleClick={() => handleDoubleClickObject(o.name, describe)}
             className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-blue-50 border-b border-slate-100 ${
               selectedObject === o.name ? 'bg-blue-100 text-blue-700' : 'text-slate-700'
             }`}

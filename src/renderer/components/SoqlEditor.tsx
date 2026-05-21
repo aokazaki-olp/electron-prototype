@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { Play, AlertCircle } from 'lucide-react';
@@ -11,13 +11,13 @@ interface Props {
 }
 
 export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
-  const { soql, setSoql, queryLoading, setQueryLoading } = useAppStore();
+  const { soql, setSoql, queryLoading, setQueryLoading, runTrigger } = useAppStore();
   const [fetchAll, setFetchAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const maxRows = fetchAll ? 0 : (settings?.defaultMaxRows ?? 2000);
 
-  const runQuery = async () => {
+  const runQuery = useCallback(async () => {
     const trimmed = soql.trim();
     if (!trimmed) return;
 
@@ -32,7 +32,13 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
     } finally {
       setQueryLoading(false);
     }
-  };
+  }, [soql, maxRows, onResult, setQueryLoading]);
+
+  useEffect(() => {
+    if (runTrigger > 0) {
+      runQuery();
+    }
+  }, [runTrigger]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
