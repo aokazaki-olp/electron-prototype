@@ -3,7 +3,8 @@
  * @description Electronメインプロセス — BrowserWindow生成・IPC登録
  */
 
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
+import { readFile, writeFile } from 'node:fs/promises';
 import { handleCallbackUrl } from './sfOAuth.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -274,6 +275,34 @@ const registerIpcHandlers = (): void => {
       throw new Error('プロファイルが選択されていません');
     }
     return exportObjectDefinition(activeProfileId, String(objectName));
+  });
+
+  // SOQLファイル
+  handle(IPC.SAVE_SOQL_FILE, async (soql, defaultName) => {
+    const { filePath, canceled } = await dialog.showSaveDialog({
+      defaultPath: `${String(defaultName)}.soql`,
+      filters: [
+        { name: 'SOQL ファイル', extensions: ['soql'] },
+        { name: 'SQL ファイル', extensions: ['sql'] },
+        { name: 'すべてのファイル', extensions: ['*'] },
+      ],
+    });
+    if (canceled || !filePath) return;
+    await writeFile(filePath, String(soql), 'utf-8');
+  });
+
+  handle(IPC.OPEN_SOQL_FILE, async () => {
+    const { filePaths, canceled } = await dialog.showOpenDialog({
+      filters: [
+        { name: 'SOQL / SQL ファイル', extensions: ['soql', 'sql'] },
+        { name: 'すべてのファイル', extensions: ['*'] },
+      ],
+      properties: ['openFile'],
+    });
+    if (canceled || filePaths.length === 0 || !filePaths[0]) return null;
+    const content = await readFile(filePaths[0], 'utf-8');
+    const baseName = filePaths[0].replace(/\\/g, '/').split('/').pop()?.replace(/\.(soql|sql)$/i, '') ?? 'クエリ';
+    return { name: baseName, soql: content };
   });
 
   // ログ

@@ -51,8 +51,10 @@ interface AppStore {
   setLogs: (entries: LogEntry[]) => void;
   setTabResult: (result: QueryResult | null) => void;
   addTab: () => void;
+  addTabWithContent: (name: string, soql: string) => void;
   closeTab: (id: string) => void;
   setActiveTabId: (id: string) => void;
+  renameTab: (id: string, name: string) => void;
   loadTabs: (tabs: SoqlTab[], activeTabId: string) => void;
 }
 
@@ -96,6 +98,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
     return { tabs: [...s.tabs, tab], activeTabId: id };
   }),
 
+  addTabWithContent: (name, soql) => set((s) => {
+    const id = `tab-${Date.now()}`;
+    const tab: SoqlTab = { id, name, soql, result: null };
+    return { tabs: [...s.tabs, tab], activeTabId: id };
+  }),
+
   closeTab: (id) => set((s) => {
     if (s.tabs.length <= 1) return s;
     const idx = s.tabs.findIndex(t => t.id === id);
@@ -107,6 +115,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   }),
 
   setActiveTabId: (activeTabId) => set({ activeTabId }),
+
+  renameTab: (id, name) => set((s) => ({
+    tabs: s.tabs.map(t => t.id === id ? { ...t, name } : t),
+  })),
 
   loadTabs: (tabs, activeTabId) => set({ tabs, activeTabId }),
 }));

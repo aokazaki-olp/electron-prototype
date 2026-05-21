@@ -126,6 +126,10 @@ export const IPC = {
   UPDATE_RECORD: 'sf:update-record',
   DELETE_RECORD: 'sf:delete-record',
 
+  // SOQLファイル
+  SAVE_SOQL_FILE: 'soql:save-file',
+  OPEN_SOQL_FILE: 'soql:open-file',
+
   // エクスポート
   EXPORT_CSV: 'export:csv',
   EXPORT_QUERY_EXCEL: 'export:query-excel',
@@ -163,6 +167,10 @@ export interface SalesforceExplorerApi {
   createRecord(objectName: string, fields: Record<string, unknown>): Promise<string>;
   updateRecord(objectName: string, id: string, fields: Record<string, unknown>): Promise<void>;
   deleteRecord(objectName: string, id: string): Promise<void>;
+
+  // SOQLファイル
+  saveSoqlFile(soql: string, defaultName: string): Promise<void>;
+  openSoqlFile(): Promise<{ name: string; soql: string } | null>;
 
   // エクスポート
   exportCsv(records: Record<string, unknown>[], columns: string[], options: CsvExportOptions): Promise<void>;

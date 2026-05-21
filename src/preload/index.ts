@@ -34,6 +34,11 @@ const api: SalesforceExplorerApi = {
   deleteRecord: (objectName: string, id: string) =>
     ipcRenderer.invoke(IPC.DELETE_RECORD, objectName, id),
 
+  // SOQLファイル
+  saveSoqlFile: (soql: string, defaultName: string) =>
+    ipcRenderer.invoke(IPC.SAVE_SOQL_FILE, soql, defaultName),
+  openSoqlFile: () => ipcRenderer.invoke(IPC.OPEN_SOQL_FILE),
+
   // エクスポート
   exportCsv: (records: Record<string, unknown>[], columns: string[], options: CsvExportOptions) =>
     ipcRenderer.invoke(IPC.EXPORT_CSV, records, columns, options),

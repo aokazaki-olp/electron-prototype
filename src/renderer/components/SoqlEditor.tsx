@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
-import { Play, AlertCircle, Plus, X } from 'lucide-react';
+import { Play, AlertCircle, Plus, X, Save, FolderOpen } from 'lucide-react';
 import { useAppStore } from '../store.js';
 import type { QueryResult } from '../../ipc/contract.js';
 
@@ -15,10 +15,14 @@ interface Props {
 export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
   const {
     tabs, activeTabId, queryLoading, setQueryLoading,
-    setSoql, setTabResult, addTab, closeTab, setActiveTabId, loadTabs, runTrigger,
+    setSoql, setTabResult, addTab, addTabWithContent, closeTab,
+    setActiveTabId, renameTab, loadTabs, runTrigger,
   } = useAppStore();
   const [fetchAll, setFetchAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingTabId, setEditingTabId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   const activeTab = tabs.find(t => t.id === activeTabId);
   const soql = activeTab?.soql ?? '';
@@ -67,10 +71,47 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
     }
   }, [runTrigger]);
 
+  const handleSaveFile = async () => {
+    if (!soql.trim()) return;
+    try {
+      await window.sfx.saveSoqlFile(soql, activeTab?.name ?? 'クエリ');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleOpenFile = async () => {
+    try {
+      const file = await window.sfx.openSoqlFile();
+      if (file) {
+        addTabWithContent(file.name, file.soql);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const startRename = (tab: { id: string; name: string }) => {
+    setEditingTabId(tab.id);
+    setEditingName(tab.name);
+    setTimeout(() => renameInputRef.current?.select(), 0);
+  };
+
+  const commitRename = () => {
+    if (editingTabId && editingName.trim()) {
+      renameTab(editingTabId, editingName.trim());
+    }
+    setEditingTabId(null);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       runQuery();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      handleSaveFile();
     }
   };
 
@@ -88,7 +129,28 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
                 : 'text-slate-500 hover:bg-slate-200'
             }`}
           >
-            <span className="max-w-32 truncate">{tab.name}</span>
+            {editingTabId === tab.id ? (
+              <input
+                ref={renameInputRef}
+                value={editingName}
+                onChange={e => setEditingName(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitRename();
+                  if (e.key === 'Escape') setEditingTabId(null);
+                  e.stopPropagation();
+                }}
+                onClick={e => e.stopPropagation()}
+                className="w-24 px-1 border border-blue-400 rounded outline-none text-xs"
+              />
+            ) : (
+              <span
+                className="max-w-32 truncate"
+                onDoubleClick={e => { e.stopPropagation(); startRename(tab); }}
+              >
+                {tab.name}
+              </span>
+            )}
             {tabs.length > 1 && (
               <button
                 onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
@@ -133,6 +195,23 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
           {queryLoading ? '実行中...' : '実行'}
         </button>
         <span className="text-xs text-slate-400">Ctrl+Enter</span>
+        <div className="flex items-center gap-1 ml-2">
+          <button
+            onClick={handleOpenFile}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded"
+            title="ファイルを開く"
+          >
+            <FolderOpen size={13} /> 開く
+          </button>
+          <button
+            onClick={handleSaveFile}
+            disabled={!soql.trim()}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded disabled:opacity-40"
+            title="名前を付けて保存 (Ctrl+S)"
+          >
+            <Save size={13} /> 保存
+          </button>
+        </div>
 
         <label className="flex items-center gap-1 text-xs text-slate-600 ml-auto cursor-pointer">
           <input
