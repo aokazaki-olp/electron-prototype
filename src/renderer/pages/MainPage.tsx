@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Settings, LogOut } from 'lucide-react';
 import { SObjectBrowser } from '../components/SObjectBrowser.js';
 import { SoqlEditor } from '../components/SoqlEditor.js';
 import { ResultTable } from '../components/ResultTable.js';
 import { LogViewer } from '../components/LogViewer.js';
 import { useAppStore } from '../store.js';
-import type { QueryResult } from '../../ipc/contract.js';
 
 type BottomTab = 'result' | 'log';
 
@@ -15,9 +14,14 @@ interface Props {
 }
 
 export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
-  const { profiles, activeProfileId, settings } = useAppStore();
-  const [result, setResult] = useState<QueryResult | null>(null);
+  const { profiles, activeProfileId, settings, tabs, activeTabId } = useAppStore();
   const [bottomTab, setBottomTab] = useState<BottomTab>('result');
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  const result = activeTab?.result ?? null;
+
+  useEffect(() => {
+    if (result) setBottomTab('result');
+  }, [result]);
 
   const activeProfile = profiles.find(p => p.id === activeProfileId);
 
@@ -73,10 +77,7 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
           {/* SOQLエディタ (上部 40%) */}
           <div style={{ height: '40%' }} className="flex-shrink-0 overflow-hidden">
             <SoqlEditor
-              onResult={(r) => {
-                setResult(r);
-                setBottomTab('result');
-              }}
+              onResult={() => {}}
               settings={settings}
             />
           </div>
@@ -86,7 +87,7 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
             {/* タブバー */}
             <div className="flex items-center border-b border-slate-200 bg-slate-50 flex-shrink-0">
               {([
-                { key: 'result', label: `結果${result ? ` (${result.fetchedCount.toLocaleString()}件)` : ''}` },
+                { key: 'result', label: `結果${result != null ? ` (${result.fetchedCount.toLocaleString()}件)` : ''}` },
                 { key: 'log', label: 'ログ' },
               ] as { key: BottomTab; label: string }[]).map(tab => (
                 <button

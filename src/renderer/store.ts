@@ -4,15 +4,16 @@
  */
 
 import { create } from 'zustand';
-import type { SfConnectionProfile, SObjectSummary, LogEntry, AppSettings } from '../ipc/contract.js';
+import type { SfConnectionProfile, SObjectSummary, LogEntry, AppSettings, QueryResult } from '../ipc/contract.js';
 
 export interface SoqlTab {
   id: string;
   name: string;
   soql: string;
+  result: QueryResult | null;
 }
 
-const DEFAULT_TAB: SoqlTab = { id: 'tab-1', name: 'クエリ 1', soql: '' };
+const DEFAULT_TAB: SoqlTab = { id: 'tab-1', name: 'クエリ 1', soql: '', result: null };
 
 interface AppStore {
   // 設定
@@ -48,6 +49,7 @@ interface AppStore {
   incrementRunTrigger: () => void;
   appendLog: (entry: LogEntry) => void;
   setLogs: (entries: LogEntry[]) => void;
+  setTabResult: (result: QueryResult | null) => void;
   addTab: () => void;
   closeTab: (id: string) => void;
   setActiveTabId: (id: string) => void;
@@ -83,10 +85,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   appendLog: (entry) => set((s) => ({ logs: [...s.logs.slice(-999), entry] })),
   setLogs: (logs) => set({ logs }),
 
+  setTabResult: (result) => set((s) => ({
+    tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, result } : t),
+  })),
+
   addTab: () => set((s) => {
     const id = `tab-${Date.now()}`;
     const n = s.tabs.length + 1;
-    const tab: SoqlTab = { id, name: `クエリ ${n}`, soql: '' };
+    const tab: SoqlTab = { id, name: `クエリ ${n}`, soql: '', result: null };
     return { tabs: [...s.tabs, tab], activeTabId: id };
   }),
 

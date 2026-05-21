@@ -15,7 +15,7 @@ interface Props {
 export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
   const {
     tabs, activeTabId, queryLoading, setQueryLoading,
-    setSoql, addTab, closeTab, setActiveTabId, loadTabs, runTrigger,
+    setSoql, setTabResult, addTab, closeTab, setActiveTabId, loadTabs, runTrigger,
   } = useAppStore();
   const [fetchAll, setFetchAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,9 +37,10 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
     } catch { /* 無視 */ }
   }, []);
 
-  // タブ変更時に自動保存
+  // タブ変更時に自動保存（resultは除外）
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs, activeTabId }));
+    const toSave = tabs.map(({ id, name, soql }) => ({ id, name, soql, result: null }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs: toSave, activeTabId }));
   }, [tabs, activeTabId]);
 
   const runQuery = useCallback(async () => {
@@ -50,6 +51,7 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
     setQueryLoading(true);
     try {
       const result = await window.sfx.query(trimmed, maxRows);
+      setTabResult(result);
       onResult(result);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
