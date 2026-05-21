@@ -12,6 +12,7 @@
     "dist": "electron-vite build && electron-builder --win"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.13.25",
     "csv-stringify": "^6",
     "electron-log": "^5",
     "electron-store": "^10",

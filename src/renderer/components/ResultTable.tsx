@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -8,6 +8,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Download, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import type { QueryResult, CsvExportOptions } from '../../ipc/contract.js';
 
@@ -39,6 +40,7 @@ interface ExportDialogState {
 export const ResultTable = ({ result }: Props): JSX.Element => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [exportDialog, setExportDialog] = useState<ExportDialogState>({
     open: false,
     bom: true,
@@ -69,6 +71,14 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+  });
+
+  const rows = table.getRowModel().rows;
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 28,
+    overscan: 20,
   });
 
   const handleExportCsv = async () => {
@@ -140,7 +150,7 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
       </div>
 
       {/* テーブル */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" ref={scrollRef}>
         <table className="text-xs border-collapse w-full">
           <thead className="sticky top-0 bg-slate-100 z-10">
             {table.getHeaderGroups().map(hg => (
@@ -162,20 +172,27 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
               </tr>
             ))}
           </thead>
-          <tbody>
-            {table.getRowModel().rows.map((row, i) => (
-              <tr key={row.id} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                {row.getVisibleCells().map(cell => (
-                  <td
-                    key={cell.id}
-                    className="px-2 py-1 border-b border-r border-slate-100 max-w-xs truncate"
-                    title={String(cell.getValue() ?? '')}
-                  >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
-              </tr>
-            ))}
+          <tbody style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
+            {virtualizer.getVirtualItems().map(vRow => {
+              const row = rows[vRow.index];
+              return (
+                <tr
+                  key={row.id}
+                  style={{ position: 'absolute', top: vRow.start, left: 0, width: '100%' }}
+                  className={vRow.index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}
+                >
+                  {row.getVisibleCells().map(cell => (
+                    <td
+                      key={cell.id}
+                      className="px-2 py-1 border-b border-r border-slate-100 max-w-xs truncate"
+                      title={String(cell.getValue() ?? '')}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
