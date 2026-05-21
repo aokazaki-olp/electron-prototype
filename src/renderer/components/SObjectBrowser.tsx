@@ -34,7 +34,11 @@ export const SObjectBrowser = (): JSX.Element => {
     }
     setDescribeLoading(true);
     window.sfx.describeObject(selectedObject)
-      .then(setDescribe)
+      .then(desc => {
+        setDescribe(desc);
+        const fields = desc.fields.map(f => f.name).join(',\n  ');
+        setSoql(`SELECT\n  ${fields}\nFROM ${selectedObject}\nLIMIT 200`);
+      })
       .catch(console.error)
       .finally(() => setDescribeLoading(false));
   }, [selectedObject]);
@@ -46,7 +50,6 @@ export const SObjectBrowser = (): JSX.Element => {
 
   const handleSelectObject = (name: string) => {
     setSelectedObject(name);
-    setSoql(`SELECT Id, Name FROM ${name} LIMIT 200`);
   };
 
   const handleExportDefinition = async () => {
