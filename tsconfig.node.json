@@ -20,6 +20,7 @@
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
     "packages/ipc-contract/src/**/*.ts",
+    "packages/main-core/src/**/*.ts",
     "packages/libs/src/**/*.ts",
     "electron.vite.config.ts"
   ]

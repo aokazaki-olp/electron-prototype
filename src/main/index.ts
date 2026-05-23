@@ -5,20 +5,25 @@
 
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
-import { handleCallbackUrl } from './sfOAuth.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
-import { BUILD } from './buildInfo.js';
-import { initLogger, initAuditLogger, log, getRecentLogs } from './logger.js';
-import { loadProfiles, saveProfile, deleteProfile, loadSettings, saveSettings } from './settings.js';
 import {
+  BUILD,
+  initLogger,
+  initAuditLogger,
+  log,
+  getRecentLogs,
+  loadProfiles,
+  saveProfile,
+  deleteProfile,
+  loadSettings,
+  saveSettings,
+  handleCallbackUrl,
   startOAuth,
   refreshAccessToken,
   disconnect,
   isConnected,
   injectTokenForTest,
-} from './sfOAuth.js';
-import {
   listSObjects,
   describeObject,
   query,
@@ -28,8 +33,10 @@ import {
   setCurrentProfile,
   markWriteSession,
   clearWriteSession,
-} from './sfApi.js';
-import { exportCsv, exportQueryExcel, exportObjectDefinition } from './export.js';
+  exportCsv,
+  exportQueryExcel,
+  exportObjectDefinition,
+} from '@app/main-core';
 import { IPC } from '@app/ipc-contract';
 import type { CsvExportOptions, LogEntry, SfConnectionProfile, SObjectSummary, SObjectDescribe } from '@app/ipc-contract';
 
