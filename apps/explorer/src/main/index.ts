@@ -237,7 +237,10 @@ const registerIpcHandlers = (): void => {
   handle(IPC.LOAD_SETTINGS, async () => loadSettings());
   handle(IPC.SAVE_SETTINGS, async (settings) => saveSettings(settings as Parameters<typeof saveSettings>[0]));
   handle(IPC.LOAD_PROFILES, async () => {
-    if (isTestMode && testMock.profiles.length > 0) return testMock.profiles;
+    // テストモードでは testMock を唯一の真とする（実 store からの漏えいを防ぐ）。
+    // ただし testMock.useRealApi が true のときだけは実 store を使う
+    // （real-oauth.spec.ts 等、保存済み refresh_token を前提とする結合テスト用）。
+    if (isTestMode && !testMock.useRealApi) return testMock.profiles;
     return loadProfiles();
   });
   handle(IPC.SAVE_PROFILE, async (profile) => saveProfile(profile as Parameters<typeof saveProfile>[0]));
@@ -268,9 +271,13 @@ const registerIpcHandlers = (): void => {
 
   handle(IPC.GET_AUTH_STATE, async (profileId) => {
     const id = String(profileId);
-    // テストモードでモックプロファイルが設定済みかつ activeProfileId が一致するとき connected を返す
-    if (isTestMode && testMock.activeProfileId === id && testMock.profiles.some(p => p.id === id)) {
-      return 'connected';
+    if (isTestMode && !testMock.useRealApi) {
+      // 隔離テスト: testMock + 明示注入されたメモリトークンのみで判断する。
+      // 実 store の refresh_token を使った自動リフレッシュは行わない。
+      if (testMock.activeProfileId === id && testMock.profiles.some(p => p.id === id)) {
+        return 'connected';
+      }
+      return isConnected(id) ? 'connected' : 'disconnected';
     }
     if (isConnected(id)) {
       return 'connected';
