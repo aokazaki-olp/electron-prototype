@@ -11,9 +11,10 @@ export interface SoqlTab {
   name: string;
   soql: string;
   result: QueryResult | null;
+  fetchAll: boolean;
 }
 
-const DEFAULT_TAB: SoqlTab = { id: 'tab-1', name: 'クエリ 1', soql: '', result: null };
+const DEFAULT_TAB: SoqlTab = { id: 'tab-1', name: 'クエリ 1', soql: '', result: null, fetchAll: false };
 
 interface AppStore {
   // 設定
@@ -45,6 +46,8 @@ interface AppStore {
   setSelectedObject: (name: string | null) => void;
   setSobjectsLoading: (v: boolean) => void;
   setSoql: (s: string) => void;
+  setSoqlAndRun: (soql: string) => void;
+  setTabFetchAll: (v: boolean) => void;
   setQueryLoading: (v: boolean) => void;
   incrementRunTrigger: () => void;
   appendLog: (entry: LogEntry) => void;
@@ -79,8 +82,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setSobjects: (sobjects) => set({ sobjects }),
   setSelectedObject: (selectedObject) => set({ selectedObject }),
   setSobjectsLoading: (sobjectsLoading) => set({ sobjectsLoading }),
-  setSoql: (soql) => set((s) => ({
-    tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, soql } : t),
+  setSoql: (soql) => set((s) => {
+    const active = s.tabs.find(t => t.id === s.activeTabId);
+    if (!active || active.soql === soql) return s;
+    return { tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, soql } : t) };
+  }),
+  setSoqlAndRun: (soql) => set((s) => {
+    const active = s.tabs.find(t => t.id === s.activeTabId);
+    if (!active) return s;
+    const tabs = active.soql === soql
+      ? s.tabs
+      : s.tabs.map(t => t.id === s.activeTabId ? { ...t, soql } : t);
+    return { tabs, runTrigger: s.runTrigger + 1 };
+  }),
+  setTabFetchAll: (fetchAll) => set((s) => ({
+    tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, fetchAll } : t),
   })),
   setQueryLoading: (queryLoading) => set({ queryLoading }),
   incrementRunTrigger: () => set((s) => ({ runTrigger: s.runTrigger + 1 })),
@@ -92,15 +108,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
   })),
 
   addTab: () => set((s) => {
-    const id = `tab-${Date.now()}`;
-    const n = s.tabs.length + 1;
-    const tab: SoqlTab = { id, name: `クエリ ${n}`, soql: '', result: null };
+    const id = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const existingNums = s.tabs
+      .map(t => { const m = t.name.match(/^クエリ (\d+)$/); return m ? Number(m[1]) : 0; })
+      .filter(n => n > 0);
+    const n = existingNums.length > 0 ? Math.max(...existingNums) + 1 : s.tabs.length + 1;
+    const tab: SoqlTab = { id, name: `クエリ ${n}`, soql: '', result: null, fetchAll: false };
     return { tabs: [...s.tabs, tab], activeTabId: id };
   }),
 
   addTabWithContent: (name, soql) => set((s) => {
-    const id = `tab-${Date.now()}`;
-    const tab: SoqlTab = { id, name, soql, result: null };
+    const id = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const tab: SoqlTab = { id, name, soql, result: null, fetchAll: false };
     return { tabs: [...s.tabs, tab], activeTabId: id };
   }),
 

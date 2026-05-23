@@ -15,6 +15,7 @@ import {
   refreshAccessToken,
   disconnect,
   isConnected,
+  injectTokenForTest,
 } from './sfOAuth.js';
 import {
   listSObjects,
@@ -29,15 +30,49 @@ import {
 } from './sfApi.js';
 import { exportCsv, exportQueryExcel, exportObjectDefinition } from './export.js';
 import { IPC } from '../ipc/contract.js';
-import type { CsvExportOptions, LogEntry } from '../ipc/contract.js';
+import type { CsvExportOptions, LogEntry, SfConnectionProfile, SObjectSummary, SObjectDescribe } from '../ipc/contract.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// ============================================================================
+// テストモード
+// ============================================================================
+
+const isTestMode = process.env['NODE_ENV'] === 'test';
+
+if (isTestMode) {
+  // Playwright が CDP 経由で接続できるようにする。
+  // 外部 CLI フラグは Electron 32 のセキュリティで拒否されるため、
+  // app.commandLine.appendSwitch を使って app.whenReady より前に設定する。
+  app.commandLine.appendSwitch('remote-debugging-port', '19222');
+}
+
+// テストモード専用の in-memory モックデータ
+type TestMockStore = {
+  profiles: SfConnectionProfile[];
+  activeProfileId: string | null;
+  sobjects: SObjectSummary[];
+  describe: Record<string, SObjectDescribe>;
+  useRealApi: boolean;
+};
+
+const testMock: TestMockStore = {
+  profiles: [],
+  activeProfileId: null,
+  sobjects: [],
+  describe: {},
+  useRealApi: false,
+};
 
 // ============================================================================
 // シングルインスタンス + カスタムURLスキーム
 // ============================================================================
 
 // Windows: 2つ目の起動を防ぎ、URLを最初のインスタンスに転送する
+// テストモードでも必ずロックを取得する。
+// OAuth コールバック時に OS が別プロセスを起動するが、ロックがあれば
+// second-instance イベント経由でこのプロセスに URL が転送される。
+// workers: 1 で実行しているため並列競合は起きない。
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -168,10 +203,34 @@ const handle = <T>(
 let activeProfileId: string | null = null;
 
 const registerIpcHandlers = (): void => {
+  // テストモード専用: テスト用モックデータをセットアップするチャンネル
+  if (isTestMode) {
+    ipcMain.handle('test:setup', (_event, data: unknown) => {
+      if (typeof data !== 'object' || data === null) return;
+      const d = data as Partial<TestMockStore> & { accessToken?: string; instanceUrl?: string };
+      if (Array.isArray(d.profiles)) testMock.profiles = d.profiles;
+      if (Array.isArray(d.sobjects)) testMock.sobjects = d.sobjects;
+      if (typeof d.describe === 'object' && d.describe !== null) testMock.describe = d.describe;
+      if (typeof d.useRealApi === 'boolean') testMock.useRealApi = d.useRealApi;
+      if (typeof d.activeProfileId === 'string') {
+        testMock.activeProfileId = d.activeProfileId;
+        activeProfileId = d.activeProfileId;
+        setCurrentProfile(d.activeProfileId);
+      }
+      // 実APIモード: アクセストークンをメモリに注入（リロード前に設定しておく必要がある）
+      if (testMock.useRealApi && typeof d.accessToken === 'string' && typeof d.instanceUrl === 'string' && activeProfileId) {
+        injectTokenForTest(activeProfileId, d.accessToken, d.instanceUrl);
+      }
+    });
+  }
+
   // 設定
   handle(IPC.LOAD_SETTINGS, async () => loadSettings());
   handle(IPC.SAVE_SETTINGS, async (settings) => saveSettings(settings as Parameters<typeof saveSettings>[0]));
-  handle(IPC.LOAD_PROFILES, async () => loadProfiles());
+  handle(IPC.LOAD_PROFILES, async () => {
+    if (isTestMode && testMock.profiles.length > 0) return testMock.profiles;
+    return loadProfiles();
+  });
   handle(IPC.SAVE_PROFILE, async (profile) => saveProfile(profile as Parameters<typeof saveProfile>[0]));
   handle(IPC.DELETE_PROFILE, async (id) => deleteProfile(String(id)));
 
@@ -200,6 +259,10 @@ const registerIpcHandlers = (): void => {
 
   handle(IPC.GET_AUTH_STATE, async (profileId) => {
     const id = String(profileId);
+    // テストモードでモックプロファイルが設定済みかつ activeProfileId が一致するとき connected を返す
+    if (isTestMode && testMock.activeProfileId === id && testMock.profiles.some(p => p.id === id)) {
+      return 'connected';
+    }
     if (isConnected(id)) {
       return 'connected';
     }
@@ -215,6 +278,7 @@ const registerIpcHandlers = (): void => {
 
   // SF API（読み取り）
   handle(IPC.LIST_SOBJECTS, async () => {
+    if (isTestMode && !testMock.useRealApi) return testMock.sobjects;
     if (!activeProfileId) {
       throw new Error('プロファイルが選択されていません');
     }
@@ -222,6 +286,12 @@ const registerIpcHandlers = (): void => {
   });
 
   handle(IPC.DESCRIBE_OBJECT, async (name) => {
+    if (isTestMode && !testMock.useRealApi) {
+      const objectName = String(name);
+      return testMock.describe[objectName] ?? {
+        name: objectName, label: objectName, labelPlural: objectName, fields: [], childRelationships: [],
+      };
+    }
     if (!activeProfileId) {
       throw new Error('プロファイルが選択されていません');
     }
@@ -229,6 +299,7 @@ const registerIpcHandlers = (): void => {
   });
 
   handle(IPC.QUERY, async (soql, maxRows) => {
+    if (isTestMode && !testMock.useRealApi) return { totalSize: 0, done: true, records: [], fetchedCount: 0 };
     if (!activeProfileId) {
       throw new Error('プロファイルが選択されていません');
     }
@@ -307,4 +378,14 @@ const registerIpcHandlers = (): void => {
 
   // ログ
   handle(IPC.GET_RECENT_LOGS, async () => getRecentLogs());
+
+  // レンダラー → メインへのログ転送
+  ipcMain.on(IPC.RENDERER_LOG, (_event, level: unknown, text: unknown) => {
+    const lvl = String(level);
+    const msg = `[Renderer] ${String(text)}`;
+    if (lvl === 'error') { log.error(msg); }
+    else if (lvl === 'warn') { log.warn(msg); }
+    else if (lvl === 'info') { log.info(msg); }
+    else { log.debug(msg); }
+  });
 };

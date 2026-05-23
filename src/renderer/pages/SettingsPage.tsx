@@ -79,7 +79,8 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
   };
 
   const saveAppSettings = async (patch: Partial<AppSettings>) => {
-    const updated = { ...settings!, ...patch };
+    if (!settings) return;
+    const updated = { ...settings, ...patch };
     setSettings(updated);
     await window.sfx.saveSettings(updated);
   };

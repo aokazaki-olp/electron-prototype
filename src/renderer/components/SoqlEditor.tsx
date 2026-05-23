@@ -1,24 +1,45 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { memo, useState, useEffect, useCallback, useRef } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { Play, AlertCircle, Plus, X, Save, FolderOpen } from 'lucide-react';
 import { useAppStore } from '../store.js';
-import type { QueryResult } from '../../ipc/contract.js';
+import type { SoqlTab } from '../store.js';
 
 const STORAGE_KEY = 'sfx-soql-tabs';
 
+// モジュールスコープで固定: レンダーのたびに新しいオブジェクトが生まれると
+// @uiw/react-codemirror が StateEffect.reconfigure を毎回実行してしまいフリーズする
+const CM_EXTENSIONS = [sql()];
+const CM_BASIC_SETUP = { lineNumbers: true, foldGutter: false } as const;
+
 interface Props {
-  onResult: (result: QueryResult) => void;
   settings: { defaultMaxRows: number } | null;
 }
 
-export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
+const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   const {
     tabs, activeTabId, queryLoading, setQueryLoading,
-    setSoql, setTabResult, addTab, addTabWithContent, closeTab,
+    setSoql, setTabFetchAll, setTabResult, addTab, addTabWithContent, closeTab,
     setActiveTabId, renameTab, loadTabs, runTrigger,
-  } = useAppStore();
-  const [fetchAll, setFetchAll] = useState(false);
+  } = useAppStore(
+    useShallow(s => ({
+      tabs: s.tabs,
+      activeTabId: s.activeTabId,
+      queryLoading: s.queryLoading,
+      setQueryLoading: s.setQueryLoading,
+      setSoql: s.setSoql,
+      setTabFetchAll: s.setTabFetchAll,
+      setTabResult: s.setTabResult,
+      addTab: s.addTab,
+      addTabWithContent: s.addTabWithContent,
+      closeTab: s.closeTab,
+      setActiveTabId: s.setActiveTabId,
+      renameTab: s.renameTab,
+      loadTabs: s.loadTabs,
+      runTrigger: s.runTrigger,
+    }))
+  );
   const [error, setError] = useState<string | null>(null);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
@@ -26,49 +47,66 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
 
   const activeTab = tabs.find(t => t.id === activeTabId);
   const soql = activeTab?.soql ?? '';
+  const fetchAll = activeTab?.fetchAll ?? false;
   const maxRows = fetchAll ? 0 : (settings?.defaultMaxRows ?? 2000);
 
-  // 起動時にlocalStorageから復元
+  // 起動時にlocalStorageから復元（activeTabId の存在確認 + fetchAll デフォルト補完）
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const { tabs: saved, activeTabId: savedId } = JSON.parse(raw) as { tabs: typeof tabs; activeTabId: string };
-        if (Array.isArray(saved) && saved.length > 0) {
-          loadTabs(saved, savedId ?? saved[0].id);
-        }
-      }
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { tabs: unknown[]; activeTabId: string };
+      if (!Array.isArray(parsed.tabs) || parsed.tabs.length === 0) return;
+      const restored: SoqlTab[] = parsed.tabs
+        .filter((t): t is Record<string, unknown> => typeof t === 'object' && t !== null)
+        .map(t => ({
+          id: typeof t['id'] === 'string' ? t['id'] : `tab-${Date.now()}`,
+          name: typeof t['name'] === 'string' ? t['name'] : 'クエリ',
+          soql: typeof t['soql'] === 'string' ? t['soql'] : '',
+          result: null,
+          fetchAll: typeof t['fetchAll'] === 'boolean' ? t['fetchAll'] : false,
+        }));
+      const validId = restored.find(t => t.id === parsed.activeTabId)?.id ?? restored[0].id;
+      loadTabs(restored, validId);
     } catch { /* 無視 */ }
   }, []);
 
-  // タブ変更時に自動保存（resultは除外）
+  // タブ変更時に自動保存（result は除外、fetchAll は保存対象）
   useEffect(() => {
-    const toSave = tabs.map(({ id, name, soql }) => ({ id, name, soql, result: null }));
+    const toSave = tabs.map(({ id, name, soql, fetchAll }) => ({ id, name, soql, fetchAll, result: null }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs: toSave, activeTabId }));
   }, [tabs, activeTabId]);
 
   const runQuery = useCallback(async () => {
     const trimmed = soql.trim();
     if (!trimmed) return;
-
     setError(null);
     setQueryLoading(true);
     try {
       const result = await window.sfx.query(trimmed, maxRows);
       setTabResult(result);
-      onResult(result);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      window.sfx.rendererLog('error', `runQuery失敗: ${msg}`);
       setError(msg);
     } finally {
       setQueryLoading(false);
     }
-  }, [soql, maxRows, onResult, setQueryLoading]);
+  }, [soql, maxRows, setQueryLoading, setTabResult]);
 
+  // runQuery の最新版を ref で保持し、useEffect の依存を runTrigger のみに絞る。
+  // これにより soql 変更時に useEffect が誤発火してクエリが繰り返し実行されるのを防ぐ。
+  // lastRunTriggerRef で同一 trigger 値による二重実行（StrictMode の effect 二回呼び出し）を防ぐ。
+  const runQueryRef = useRef(runQuery);
   useEffect(() => {
-    if (runTrigger > 0) {
-      runQuery();
-    }
+    runQueryRef.current = runQuery;
+  });
+
+  const lastRunTriggerRef = useRef(0);
+  useEffect(() => {
+    if (runTrigger <= 0 || runTrigger === lastRunTriggerRef.current) return;
+    lastRunTriggerRef.current = runTrigger;
+    runQueryRef.current();
   }, [runTrigger]);
 
   const handleSaveFile = async () => {
@@ -176,10 +214,10 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
           key={activeTabId}
           value={soql}
           onChange={setSoql}
-          extensions={[sql()]}
+          extensions={CM_EXTENSIONS}
           height="100%"
           theme="light"
-          basicSetup={{ lineNumbers: true, foldGutter: false }}
+          basicSetup={CM_BASIC_SETUP}
           className="h-full text-sm"
         />
       </div>
@@ -217,7 +255,7 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
           <input
             type="checkbox"
             checked={fetchAll}
-            onChange={e => setFetchAll(e.target.checked)}
+            onChange={e => setTabFetchAll(e.target.checked)}
             className="accent-blue-500"
           />
           件数制限を無効にして全件取得
@@ -239,3 +277,5 @@ export const SoqlEditor = ({ onResult, settings }: Props): JSX.Element => {
     </div>
   );
 };
+
+export const SoqlEditor = memo(SoqlEditorInner);

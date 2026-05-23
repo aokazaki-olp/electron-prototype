@@ -1,4 +1,4 @@
-/**
+﻿/**
  * export.ts
  * @description CSV・Excel出力（保存ダイアログ付き）
  */
@@ -33,7 +33,7 @@ export const toCsvBuffer = (
     },
   });
 
-  const content = options.bom ? '﻿' + csv : csv;
+  const content = options.bom ? '\uFEFF' + csv : csv;
   return Buffer.from(content, 'utf-8');
 };
 

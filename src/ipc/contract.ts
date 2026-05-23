@@ -18,7 +18,6 @@ export interface SfConnectionProfile {
 
 export interface AppSettings {
   defaultMaxRows: number;
-  profiles: SfConnectionProfile[];
 }
 
 // ============================================================================
@@ -138,6 +137,9 @@ export const IPC = {
   // ログ（push型 main → renderer）
   LOG_ENTRY: 'log:entry',
   GET_RECENT_LOGS: 'log:recent',
+
+  // レンダラー → メインへのログ転送（renderer の console.log をログビューアに出す）
+  RENDERER_LOG: 'log:renderer',
 } as const;
 
 // ============================================================================
@@ -180,6 +182,7 @@ export interface SalesforceExplorerApi {
   // ログ
   getRecentLogs(limit?: number): Promise<LogEntry[]>;
   onLogEntry(callback: (entry: LogEntry) => void): () => void;
+  rendererLog(level: LogLevel, text: string): void;
 }
 
 declare global {

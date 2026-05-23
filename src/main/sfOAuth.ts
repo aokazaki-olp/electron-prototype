@@ -248,3 +248,9 @@ export const getInstanceUrl = (profileId: string): string | null =>
 
 export const isConnected = (profileId: string): boolean =>
   accessTokenMap.has(profileId);
+
+// テストモード専用: アクセストークンを直接注入する（本番コードからは呼ばない）
+export const injectTokenForTest = (profileId: string, accessToken: string, instanceUrl: string): void => {
+  accessTokenMap.set(profileId, accessToken);
+  instanceUrlMemory.set(profileId, instanceUrl);
+};

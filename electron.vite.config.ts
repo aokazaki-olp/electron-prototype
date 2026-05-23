@@ -8,6 +8,10 @@ export default defineConfig({
     build: {
       rollupOptions: {
         input: resolve('src/main/index.ts'),
+        output: {
+          format: 'es',
+          entryFileNames: '[name].js',
+        },
       },
     },
   },

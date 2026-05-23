@@ -54,6 +54,16 @@ const api: SalesforceExplorerApi = {
     ipcRenderer.on(IPC.LOG_ENTRY, handler);
     return () => ipcRenderer.removeListener(IPC.LOG_ENTRY, handler);
   },
+  rendererLog: (level: string, text: string) => {
+    ipcRenderer.send(IPC.RENDERER_LOG, level, text);
+  },
 };
 
 contextBridge.exposeInMainWorld('sfx', api);
+
+// テストモード専用: Playwright から IPC テストセットアップを呼び出せるブリッジ
+if (process.env['NODE_ENV'] === 'test') {
+  contextBridge.exposeInMainWorld('__testSetup__', (data: unknown) =>
+    ipcRenderer.invoke('test:setup', data),
+  );
+}

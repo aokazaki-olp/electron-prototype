@@ -194,19 +194,26 @@ export const query = async (
   const client = getClient(profileId);
   const records: Record<string, unknown>[] = [];
 
-  // ランタイムガード: records/done/totalSize は直後の push/while で使用前に存在を前提とする
-  let res = await client.get('/query', { q: soql }) as {
+  type QueryPage = {
     totalSize: number;
     done: boolean;
     records: Record<string, unknown>[];
     nextRecordsUrl?: string;
   };
 
+  let res = await client.get('/query', { q: soql }) as QueryPage;
+
+  if (!Array.isArray(res.records)) {
+    throw new Error('クエリレスポンスの records フィールドが不正です');
+  }
   records.push(...res.records);
 
   while (!res.done && res.nextRecordsUrl && (maxRows === 0 || records.length < maxRows)) {
     // nextRecordsUrl の /services/data/vXX.X プレフィックスを除去して baseUrl の二重化を防ぐ
-    res = await client.get(toRelativeEndpoint(res.nextRecordsUrl)) as typeof res;
+    res = await client.get(toRelativeEndpoint(res.nextRecordsUrl)) as QueryPage;
+    if (!Array.isArray(res.records)) {
+      throw new Error('クエリレスポンスの records フィールドが不正です (ページネーション)');
+    }
     records.push(...res.records);
   }
 
@@ -252,7 +259,9 @@ export const createRecord = async (
   // ランタイムガード: SF は成功時に必ず { id: string } を返す (REST API仕様)
   const res = await client.post(`/sobjects/${objectName}/`, fields) as { id: string };
 
-  auditLog(getProfile(profileId)!.name, 'CREATE', `${objectName}`, 1);
+  const profileForAudit = getProfile(profileId);
+  if (!profileForAudit) throw new Error(`プロファイルが見つかりません: ${profileId}`);
+  auditLog(profileForAudit.name, 'CREATE', objectName, 1);
   return res.id;
 };
 
@@ -266,7 +275,9 @@ export const updateRecord = async (
   const client = getClient(profileId);
   await client.patch(`/sobjects/${objectName}/${id}`, fields);
 
-  auditLog(getProfile(profileId)!.name, 'UPDATE', `${objectName}/${id}`, 1);
+  const profileForAudit = getProfile(profileId);
+  if (!profileForAudit) throw new Error(`プロファイルが見つかりません: ${profileId}`);
+  auditLog(profileForAudit.name, 'UPDATE', `${objectName}/${id}`, 1);
 };
 
 export const deleteRecord = async (
@@ -278,7 +289,9 @@ export const deleteRecord = async (
   const client = getClient(profileId);
   await client.delete(`/sobjects/${objectName}/${id}`);
 
-  auditLog(getProfile(profileId)!.name, 'DELETE', `${objectName}/${id}`, 1);
+  const profileForAudit = getProfile(profileId);
+  if (!profileForAudit) throw new Error(`プロファイルが見つかりません: ${profileId}`);
+  auditLog(profileForAudit.name, 'DELETE', `${objectName}/${id}`, 1);
 };
 
 export { WRITE_REQUIRED };

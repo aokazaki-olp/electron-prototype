@@ -9,7 +9,12 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "dist": "electron-vite build && electron-builder --win"
+    "dist": "electron-vite build && electron-builder --win",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.25",
@@ -21,16 +26,22 @@
   },
   "devDependencies": {
     "@codemirror/lang-sql": "^6",
+    "@playwright/test": "^1.46.0",
     "@tanstack/react-table": "^8",
-    "@types/node": "^22",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@uiw/react-codemirror": "^4",
     "@vitejs/plugin-react": "^4",
+    "@vitest/coverage-v8": "^4.1.7",
     "autoprefixer": "^10",
-    "electron": "^32",
+    "electron": "^42.0.0",
     "electron-builder": "^25",
     "electron-vite": "^2",
+    "happy-dom": "^20.9.0",
     "lucide-react": "^0",
     "playwright-core": "^1.60.0",
     "postcss": "^8",
@@ -39,6 +50,7 @@
     "tailwindcss": "^3",
     "typescript": "^5",
     "vite": "^5",
+    "vitest": "^4.1.7",
     "zustand": "^5"
   }
 }

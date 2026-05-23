@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -74,12 +74,20 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
   });
 
   const rows = table.getRowModel().rows;
+  const getScrollElement = useCallback(() => scrollRef.current, []);
+  const estimateSize = useCallback(() => 28, []);
   const virtualizer = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => 28,
+    getScrollElement,
+    estimateSize,
     overscan: 20,
   });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const paddingTop = virtualItems[0]?.start ?? 0;
+  const paddingBottom = virtualItems.length > 0
+    ? virtualizer.getTotalSize() - virtualItems.at(-1)!.end
+    : 0;
 
   const handleExportCsv = async () => {
     if (!result) return;
@@ -172,13 +180,15 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
               </tr>
             ))}
           </thead>
-          <tbody style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative' }}>
-            {virtualizer.getVirtualItems().map(vRow => {
+          <tbody>
+            {paddingTop > 0 && (
+              <tr><td colSpan={cols.length} style={{ height: paddingTop }} /></tr>
+            )}
+            {virtualItems.map(vRow => {
               const row = rows[vRow.index];
               return (
                 <tr
                   key={row.id}
-                  style={{ position: 'absolute', top: vRow.start, left: 0, width: '100%' }}
                   className={vRow.index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}
                 >
                   {row.getVisibleCells().map(cell => (
@@ -193,6 +203,9 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
                 </tr>
               );
             })}
+            {paddingBottom > 0 && (
+              <tr><td colSpan={cols.length} style={{ height: paddingBottom }} /></tr>
+            )}
           </tbody>
         </table>
       </div>

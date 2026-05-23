@@ -1,11 +1,20 @@
 import { useEffect, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { MainPage } from './pages/MainPage.js';
 import { useAppStore } from './store.js';
 import type { LogEntry } from '../ipc/contract.js';
 
 const App = (): JSX.Element => {
-  const { authState, activeProfileId, setAuthState, setActiveProfileId, appendLog } = useAppStore();
+  const { authState, activeProfileId, setAuthState, setActiveProfileId, appendLog } = useAppStore(
+    useShallow(s => ({
+      authState: s.authState,
+      activeProfileId: s.activeProfileId,
+      setAuthState: s.setAuthState,
+      setActiveProfileId: s.setActiveProfileId,
+      appendLog: s.appendLog,
+    }))
+  );
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
@@ -17,24 +26,28 @@ const App = (): JSX.Element => {
   }, []);
 
   useEffect(() => {
-    // 起動時: 最後に使ったプロファイルがあれば自動リフレッシュを試みる
-    window.sfx.loadProfiles().then(async (profiles) => {
-      if (profiles.length === 0) {
+    // 起動時: プロファイルを順に試み、最初に自動接続できたものを使う
+    const init = async () => {
+      try {
+        const profiles = await window.sfx.loadProfiles();
+        if (profiles.length === 0) {
+          setAuthState('disconnected');
+          return;
+        }
+        for (const profile of profiles) {
+          const state = await window.sfx.getAuthState(profile.id);
+          if (state === 'connected') {
+            setActiveProfileId(profile.id);
+            setAuthState('connected');
+            return;
+          }
+        }
         setAuthState('disconnected');
-        return;
-      }
-      // 最初のプロファイルで自動接続を試みる
-      const first = profiles[0];
-      const state = await window.sfx.getAuthState(first.id);
-      if (state === 'connected') {
-        setActiveProfileId(first.id);
-        setAuthState('connected');
-      } else {
+      } catch {
         setAuthState('disconnected');
       }
-    }).catch(() => {
-      setAuthState('disconnected');
-    });
+    };
+    init();
   }, []);
 
   if (authState === 'checking') {

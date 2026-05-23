@@ -1,29 +1,44 @@
-import { useEffect, useRef, useState } from 'react';
-import { Search, Table2, RefreshCw } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Search, Table2, RefreshCw, AlertCircle } from 'lucide-react';
 import { useAppStore } from '../store.js';
 import type { SObjectDescribe } from '../../ipc/contract.js';
 
-export const SObjectBrowser = (): JSX.Element => {
-  const { sobjects, selectedObject, sobjectsLoading, setSobjects, setSelectedObject, setSobjectsLoading, setSoql, incrementRunTrigger } = useAppStore();
+const SObjectBrowserInner = (): JSX.Element => {
+  const { sobjects, selectedObject, sobjectsLoading, setSobjects, setSelectedObject, setSobjectsLoading, setSoqlAndRun } = useAppStore(
+    useShallow(s => ({
+      sobjects: s.sobjects,
+      selectedObject: s.selectedObject,
+      sobjectsLoading: s.sobjectsLoading,
+      setSobjects: s.setSobjects,
+      setSelectedObject: s.setSelectedObject,
+      setSobjectsLoading: s.setSobjectsLoading,
+      setSoqlAndRun: s.setSoqlAndRun,
+    }))
+  );
   const [search, setSearch] = useState('');
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [describe, setDescribe] = useState<SObjectDescribe | null>(null);
   const [describeLoading, setDescribeLoading] = useState(false);
   const pendingRun = useRef(false);
+  const listScrollRef = useRef<HTMLDivElement>(null);
 
   const loadSObjects = async () => {
     setSobjectsLoading(true);
+    setLoadError(null);
     try {
       const list = await window.sfx.listSObjects();
       setSobjects(list.sort((a, b) => a.label.localeCompare(b.label)));
     } catch (e) {
-      console.error(e);
+      setLoadError(e instanceof Error ? e.message : String(e));
     } finally {
       setSobjectsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (sobjects.length === 0) {
+    if (sobjects.length === 0 && !sobjectsLoading) {
       loadSObjects();
     }
   }, []);
@@ -34,18 +49,29 @@ export const SObjectBrowser = (): JSX.Element => {
       return;
     }
     setDescribeLoading(true);
-    window.sfx.describeObject(selectedObject)
-      .then(desc => {
+    let cancelled = false;
+
+    const fetchDescribe = async () => {
+      try {
+        const desc = await window.sfx.describeObject(selectedObject);
+        if (cancelled) return;
         setDescribe(desc);
         if (pendingRun.current) {
           pendingRun.current = false;
           const fields = desc.fields.map(f => f.name).join(',\n  ');
-          setSoql(`SELECT\n  ${fields}\nFROM ${selectedObject}\nLIMIT 200`);
-          incrementRunTrigger();
+          setSoqlAndRun(`SELECT\n  ${fields}\nFROM ${selectedObject}\nLIMIT 200`);
         }
-      })
-      .catch(console.error)
-      .finally(() => setDescribeLoading(false));
+      } catch (e) {
+        if (!cancelled) {
+          window.sfx.rendererLog('error', `describe失敗: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      } finally {
+        if (!cancelled) setDescribeLoading(false);
+      }
+    };
+
+    fetchDescribe();
+    return () => { cancelled = true; };
   }, [selectedObject]);
 
   const filtered = sobjects.filter(o =>
@@ -53,16 +79,27 @@ export const SObjectBrowser = (): JSX.Element => {
     o.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  // レンダーごとに新しい関数を作ると virtualizer が毎回リセットされてフリーズする（CM_EXTENSIONS と同じ問題）
+  const getScrollElement = useCallback(() => listScrollRef.current, []);
+  const estimateSize = useCallback(() => 33, []);
+
+  const listVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement,
+    estimateSize,
+    overscan: 10,
+  });
+
   const handleSelectObject = (name: string) => {
     pendingRun.current = false;
     setSelectedObject(name);
   };
 
   const handleDoubleClickObject = (name: string, desc: typeof describe) => {
-    if (desc && selectedObject === name) {
+    if (desc && desc.name === name) {
+      // describe が name と同じオブジェクトのもの → fast path
       const fields = desc.fields.map(f => f.name).join(',\n  ');
-      setSoql(`SELECT\n  ${fields}\nFROM ${name}\nLIMIT 200`);
-      incrementRunTrigger();
+      setSoqlAndRun(`SELECT\n  ${fields}\nFROM ${name}\nLIMIT 200`);
     } else {
       pendingRun.current = true;
       setSelectedObject(name);
@@ -104,24 +141,38 @@ export const SObjectBrowser = (): JSX.Element => {
         </div>
       </div>
 
-      {/* オブジェクト一覧 */}
-      <div className="flex-1 overflow-y-auto">
-        {filtered.map(o => (
-          <button
-            key={o.name}
-            onClick={() => handleSelectObject(o.name)}
-            onDoubleClick={() => handleDoubleClickObject(o.name, describe)}
-            className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-blue-50 border-b border-slate-100 ${
-              selectedObject === o.name ? 'bg-blue-100 text-blue-700' : 'text-slate-700'
-            }`}
-          >
-            <Table2 size={13} className="flex-shrink-0 text-slate-400" />
-            <span className="truncate">{o.label}</span>
-            {o.custom && (
-              <span className="ml-auto text-xs text-slate-400 flex-shrink-0">カスタム</span>
-            )}
-          </button>
-        ))}
+      {/* エラー表示 */}
+      {loadError && (
+        <div className="flex items-start gap-1.5 px-3 py-2 text-xs text-red-600 bg-red-50 border-b border-red-200">
+          <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+          <span>{loadError}</span>
+        </div>
+      )}
+
+      {/* オブジェクト一覧（仮想スクロール） */}
+      <div className="flex-1 overflow-y-auto" ref={listScrollRef}>
+        <div style={{ height: `${listVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+          {listVirtualizer.getVirtualItems().map(vItem => {
+            const o = filtered[vItem.index];
+            return (
+              <button
+                key={o.name}
+                style={{ position: 'absolute', top: vItem.start, left: 0, width: '100%' }}
+                onClick={() => handleSelectObject(o.name)}
+                onDoubleClick={() => handleDoubleClickObject(o.name, describe)}
+                className={`text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-blue-50 border-b border-slate-100 ${
+                  selectedObject === o.name ? 'bg-blue-100 text-blue-700' : 'text-slate-700'
+                }`}
+              >
+                <Table2 size={13} className="flex-shrink-0 text-slate-400" />
+                <span className="truncate">{o.label}</span>
+                {o.custom && (
+                  <span className="ml-auto text-xs text-slate-400 flex-shrink-0">カスタム</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* フィールド詳細 */}
@@ -156,3 +207,5 @@ export const SObjectBrowser = (): JSX.Element => {
     </div>
   );
 };
+
+export const SObjectBrowser = memo(SObjectBrowserInner);

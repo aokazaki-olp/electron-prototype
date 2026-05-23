@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Settings, LogOut } from 'lucide-react';
 import { SObjectBrowser } from '../components/SObjectBrowser.js';
 import { SoqlEditor } from '../components/SoqlEditor.js';
@@ -14,7 +15,15 @@ interface Props {
 }
 
 export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
-  const { profiles, activeProfileId, settings, tabs, activeTabId } = useAppStore();
+  const { profiles, activeProfileId, settings, tabs, activeTabId } = useAppStore(
+    useShallow(s => ({
+      profiles: s.profiles,
+      activeProfileId: s.activeProfileId,
+      settings: s.settings,
+      tabs: s.tabs,
+      activeTabId: s.activeTabId,
+    }))
+  );
   const [bottomTab, setBottomTab] = useState<BottomTab>('result');
   const activeTab = tabs.find(t => t.id === activeTabId);
   const result = activeTab?.result ?? null;
@@ -76,10 +85,7 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* SOQLエディタ (上部 40%) */}
           <div style={{ height: '40%' }} className="flex-shrink-0 overflow-hidden">
-            <SoqlEditor
-              onResult={() => {}}
-              settings={settings}
-            />
+            <SoqlEditor settings={settings} />
           </div>
 
           {/* 下部タブ */}

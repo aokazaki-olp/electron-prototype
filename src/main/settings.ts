@@ -18,7 +18,6 @@ interface StoreSchema {
 
 const DEFAULT_SETTINGS: AppSettings = {
   defaultMaxRows: 2000,
-  profiles: [],
 };
 
 const store = new Store<StoreSchema>({
