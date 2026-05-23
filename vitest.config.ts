@@ -9,8 +9,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@main': path.resolve(__dirname, 'src/main'),
-      '@renderer': path.resolve(__dirname, 'src/renderer'),
+      '@main': path.resolve(__dirname, 'packages/main-core/src'),
+      '@renderer': path.resolve(__dirname, 'apps/explorer/src/renderer'),
       '@tests': path.resolve(__dirname, 'tests'),
     },
   },
@@ -26,13 +26,13 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/**/*.{ts,tsx}', 'packages/*/src/**/*.{ts,tsx}'],
+      include: ['apps/*/src/**/*.{ts,tsx}', 'packages/*/src/**/*.{ts,tsx}'],
       exclude: [
         'packages/libs/**',
-        'src/**/*.d.ts',
-        'src/renderer/index.tsx',
-        'src/preload/**',
-        'src/main/index.ts',
+        '**/*.d.ts',
+        'apps/*/src/renderer/main.tsx',
+        'apps/*/src/preload/**',
+        'apps/*/src/main/index.ts',
       ],
     },
   },

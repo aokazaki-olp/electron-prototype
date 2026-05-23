@@ -14,8 +14,8 @@
     "isolatedModules": true,
     "types": ["node", "vitest/globals"],
     "paths": {
-      "@main/*": ["./src/main/*"],
-      "@renderer/*": ["./src/renderer/*"],
+      "@main/*": ["./packages/main-core/src/*"],
+      "@renderer/*": ["./apps/explorer/src/renderer/*"],
       "@tests/*": ["./tests/*"]
     }
   },

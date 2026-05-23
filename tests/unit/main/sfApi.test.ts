@@ -19,22 +19,22 @@ const { mockGet, mockPost, mockPatch, mockDelete, mockClient, mockGetProfile } =
   return { mockGet, mockPost, mockPatch, mockDelete, mockClient, mockGetProfile };
 });
 
-vi.mock('../../../src/libs/SalesforceApiClient.js', () => ({
+vi.mock('../../../packages/libs/src/SalesforceApiClient.js', () => ({
   SalesforceApiClient: {
     create: vi.fn(() => mockClient),
   },
 }));
 
-vi.mock('../../../src/main/sfOAuth.js', () => ({
+vi.mock('../../../packages/main-core/src/sfOAuth.js', () => ({
   getAccessToken: vi.fn(() => 'mock-access-token'),
   getInstanceUrl: vi.fn(() => 'https://test.salesforce.com'),
 }));
 
-vi.mock('../../../src/main/settings.js', () => ({
+vi.mock('../../../packages/main-core/src/settings.js', () => ({
   getProfile: mockGetProfile,
 }));
 
-vi.mock('../../../src/main/logger.js', () => ({
+vi.mock('../../../packages/main-core/src/logger.js', () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   auditLog: vi.fn(),
   appLogger: {
@@ -54,7 +54,7 @@ import {
   createRecord,
   updateRecord,
   deleteRecord,
-} from '../../../src/main/sfApi.js';
+} from '../../../packages/main-core/src/sfApi.js';
 import { makeProfile } from '../../fixtures/contract.js';
 
 const PROFILE_ID = 'p1';

@@ -3,7 +3,7 @@
  * DOM 環境不要。タブ管理ロジックと状態遷移を検証する。
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useAppStore } from '../../../src/renderer/store.js';
+import { useAppStore } from '../../../apps/explorer/src/renderer/store.js';
 import { makeQueryResult } from '../../fixtures/contract.js';
 
 const DEFAULT_TAB_ID = 'tab-1';

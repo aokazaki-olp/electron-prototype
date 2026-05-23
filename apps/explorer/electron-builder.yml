@@ -1,7 +1,7 @@
 appId: com.example.salesforce-explorer
 productName: Salesforce Explorer
 directories:
-  output: dist/explorer
+  output: dist
 files:
   - out/**
   - package.json

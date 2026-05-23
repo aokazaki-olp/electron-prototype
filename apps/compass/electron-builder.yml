@@ -1,7 +1,7 @@
 appId: com.example.salesforce-compass
 productName: Salesforce Compass
 directories:
-  output: dist/compass
+  output: dist
 files:
   - out/**
   - package.json
