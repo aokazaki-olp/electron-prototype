@@ -8,6 +8,7 @@ import { URL } from 'node:url';
 import { shell } from 'electron';
 import { got } from 'got';
 import { log } from './logger.js';
+import { OAUTH_CALLBACK_URL } from './buildInfo.js';
 import {
   saveRefreshToken,
   loadRefreshToken,
@@ -17,7 +18,7 @@ import {
   deleteRefreshToken,
 } from './settings.js';
 
-const REDIRECT_URI = 'sfexplorer://callback';
+const REDIRECT_URI = OAUTH_CALLBACK_URL;
 
 // アクセストークン・インスタンスURLをメモリで保持（profileId単位）
 const accessTokenMap = new Map<string, string>();

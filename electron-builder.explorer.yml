@@ -1,13 +1,13 @@
 appId: com.example.salesforce-explorer
 productName: Salesforce Explorer
 directories:
-  output: dist
+  output: dist/explorer
 files:
   - out/**
   - package.json
 protocols:
   - name: Salesforce Explorer
     schemes:
-      - sfexplorer
+      - salesforce-explorer
 win:
   target: portable

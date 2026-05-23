@@ -5,6 +5,7 @@
 
 import { safeStorage } from 'electron';
 import Store from 'electron-store';
+import { BUILD } from './buildInfo.js';
 import type { AppSettings, SfConnectionProfile } from '../ipc/contract.js';
 
 interface StoreSchema {
@@ -21,7 +22,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const store = new Store<StoreSchema>({
-  name: 'salesforce-explorer',
+  name: BUILD.storeName,
   defaults: {
     settings: DEFAULT_SETTINGS,
     profiles: [],

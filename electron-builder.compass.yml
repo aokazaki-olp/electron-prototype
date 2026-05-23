@@ -1,0 +1,15 @@
+appId: com.example.salesforce-compass
+productName: Salesforce Compass
+directories:
+  output: dist/compass
+files:
+  - out/**
+  - package.json
+protocols:
+  - name: Salesforce Compass
+    schemes:
+      - salesforce-compass
+win:
+  target: portable
+extraMetadata:
+  name: salesforce-compass

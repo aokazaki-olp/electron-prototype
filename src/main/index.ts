@@ -8,6 +8,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { handleCallbackUrl } from './sfOAuth.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { BUILD } from './buildInfo.js';
 import { initLogger, initAuditLogger, log, getRecentLogs } from './logger.js';
 import { loadProfiles, saveProfile, deleteProfile, loadSettings, saveSettings } from './settings.js';
 import {
@@ -79,8 +80,9 @@ if (!gotLock) {
 }
 
 app.on('second-instance', (_event, argv) => {
-  // Windows では argv の末尾に sfexplorer:// URL が入る
-  const url = argv.find(a => a.startsWith('sfexplorer://'));
+  // Windows では argv の末尾にカスタムURLスキームの URL が入る（BUILD.urlScheme による）
+  const prefix = `${BUILD.urlScheme}://`;
+  const url = argv.find(a => a.startsWith(prefix));
   if (url) {
     handleCallbackUrl(url);
   }
@@ -137,11 +139,11 @@ const createWindow = (): void => {
 app.whenReady().then(() => {
   // Windows開発環境では process.argv[1] を渡さないと URL がアプリパスとして解釈される
   if (process.platform === 'win32') {
-    app.setAsDefaultProtocolClient('sfexplorer', process.execPath, [
+    app.setAsDefaultProtocolClient(BUILD.urlScheme, process.execPath, [
       resolve(process.argv[1] ?? ''),
     ]);
   } else {
-    app.setAsDefaultProtocolClient('sfexplorer');
+    app.setAsDefaultProtocolClient(BUILD.urlScheme);
   }
   registerIpcHandlers();
   createWindow();
