@@ -5,7 +5,7 @@
  * アプリ自身が NODE_ENV=test のとき app.commandLine.appendSwitch で CDP を有効化する。
  * Playwright は chromium.connectOverCDP() でそのポートに接続する。
  *
- * 前提: npm run build 済み (out/main/index.js が存在する)
+ * 前提: npm run build 済み (apps/explorer/out/main/index.js が存在する)
  * 実行: npm run test:e2e
  */
 import { test as base, chromium, type Page } from '@playwright/test';
@@ -39,7 +39,7 @@ export const test = base.extend<ElectronFixtures>({
     const logLines: string[] = [];
     const child = spawn(
       getElectronBin(),
-      [path.join(APP_ROOT, 'out/main/index.js')],
+      [path.join(APP_ROOT, 'apps/explorer/out/main/index.js')],
       { env: { ...process.env, NODE_ENV: 'test', ELECTRON_IS_DEV: '0', ELECTRON_RUN_AS_NODE: undefined } },
     );
     child.stdout?.on('data', (d: Buffer) => logLines.push('[stdout] ' + d.toString().trim()));
