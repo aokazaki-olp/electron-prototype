@@ -3,7 +3,7 @@
  * @description Salesforce API ラッパー（describeキャッシュ・書き込みセッション管理）
  */
 
-import { SalesforceApiClient as SfClient } from '../libs/SalesforceApiClient.js';
+import { SalesforceApiClient as SfClient } from '@app/libs';
 import { getAccessToken, getInstanceUrl } from './sfOAuth.js';
 import { getProfile } from './settings.js';
 import { auditLog, log, appLogger } from './logger.js';

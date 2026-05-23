@@ -4,6 +4,10 @@
   "description": "Salesforce object explorer / SOQL client (Electron prototype)",
   "main": "out/main/index.js",
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "npm run dev:explorer",
     "dev:explorer": "cross-env BUILD_TARGET=explorer electron-vite dev",
