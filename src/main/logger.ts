@@ -7,7 +7,7 @@ import log from 'electron-log';
 import { join } from 'node:path';
 import { app } from 'electron';
 import type { Logger } from '@app/libs';
-import type { LogEntry } from '../ipc/contract.js';
+import type { LogEntry } from '@app/ipc-contract';
 
 const MASK_PATTERN = /(access_token|refresh_token|Authorization|clientSecret|code)[=:\s"]+\S+/gi;
 const MASK_REPLACEMENT = '$1=***';

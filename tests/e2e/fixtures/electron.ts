@@ -15,7 +15,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { SObjectSummary, SObjectDescribe, SfConnectionProfile } from '../../../src/ipc/contract.js';
+import type { SObjectSummary, SObjectDescribe, SfConnectionProfile } from '@app/ipc-contract';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '../../..');

@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { MainPage } from './pages/MainPage.js';
 import { useAppStore } from './store.js';
-import type { LogEntry } from '../ipc/contract.js';
+import type { LogEntry } from '@app/ipc-contract';
 
 const App = (): JSX.Element => {
   const { authState, activeProfileId, setAuthState, setActiveProfileId, appendLog } = useAppStore(

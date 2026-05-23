@@ -11,8 +11,6 @@ export default defineConfig({
     alias: {
       '@main': path.resolve(__dirname, 'src/main'),
       '@renderer': path.resolve(__dirname, 'src/renderer'),
-      '@ipc': path.resolve(__dirname, 'src/ipc'),
-      '@libs': path.resolve(__dirname, 'src/libs'),
       '@tests': path.resolve(__dirname, 'tests'),
     },
   },
@@ -28,9 +26,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
-      include: ['src/**/*.{ts,tsx}'],
+      include: ['src/**/*.{ts,tsx}', 'packages/*/src/**/*.{ts,tsx}'],
       exclude: [
-        'src/libs/**',
+        'packages/libs/**',
         'src/**/*.d.ts',
         'src/renderer/index.tsx',
         'src/preload/**',

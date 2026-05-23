@@ -10,7 +10,7 @@ import {
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Download, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import type { QueryResult, CsvExportOptions } from '../../ipc/contract.js';
+import type { QueryResult, CsvExportOptions } from '@app/ipc-contract';
 
 interface Props {
   result: QueryResult | null;

@@ -19,6 +19,6 @@
   "include": [
     "src/renderer/**/*.ts",
     "src/renderer/**/*.tsx",
-    "src/ipc/**/*.ts"
+    "packages/ipc-contract/src/**/*.ts"
   ]
 }

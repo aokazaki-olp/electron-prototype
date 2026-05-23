@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppStore } from '../store.js';
-import type { LogLevel } from '../../ipc/contract.js';
+import type { LogLevel } from '@app/ipc-contract';
 
 const LEVEL_COLOR: Record<LogLevel, string> = {
   debug: 'text-slate-400',

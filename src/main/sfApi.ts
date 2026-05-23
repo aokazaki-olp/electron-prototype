@@ -12,7 +12,7 @@ import type {
   SObjectDescribe,
   QueryResult,
   FieldDescribe,
-} from '../ipc/contract.js';
+} from '@app/ipc-contract';
 
 // ============================================================================
 // describeキャッシュ

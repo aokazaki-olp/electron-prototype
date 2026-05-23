@@ -9,7 +9,7 @@ import type {
   FieldDescribe,
   QueryResult,
   LogEntry,
-} from '../../src/ipc/contract.js';
+} from '@app/ipc-contract';
 
 export const makeProfile = (
   overrides: Partial<SfConnectionProfile> = {},

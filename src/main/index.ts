@@ -30,8 +30,8 @@ import {
   clearWriteSession,
 } from './sfApi.js';
 import { exportCsv, exportQueryExcel, exportObjectDefinition } from './export.js';
-import { IPC } from '../ipc/contract.js';
-import type { CsvExportOptions, LogEntry, SfConnectionProfile, SObjectSummary, SObjectDescribe } from '../ipc/contract.js';
+import { IPC } from '@app/ipc-contract';
+import type { CsvExportOptions, LogEntry, SfConnectionProfile, SObjectSummary, SObjectDescribe } from '@app/ipc-contract';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

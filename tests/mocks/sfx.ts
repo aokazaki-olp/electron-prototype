@@ -3,7 +3,7 @@
  * renderer テストで window.sfx を差し替えるために使う。
  */
 import { vi } from 'vitest';
-import type { SalesforceExplorerApi } from '../../src/ipc/contract.js';
+import type { SalesforceExplorerApi } from '@app/ipc-contract';
 
 export const makeMockSfx = (): SalesforceExplorerApi => ({
   loadSettings: vi.fn().mockResolvedValue({ defaultMaxRows: 2000 }),

@@ -16,8 +16,6 @@
     "paths": {
       "@main/*": ["./src/main/*"],
       "@renderer/*": ["./src/renderer/*"],
-      "@ipc/*": ["./src/ipc/*"],
-      "@libs/*": ["./src/libs/*"],
       "@tests/*": ["./tests/*"]
     }
   },

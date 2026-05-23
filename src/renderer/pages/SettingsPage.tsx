@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Edit2, Check, X, Wifi } from 'lucide-react';
 import { useAppStore } from '../store.js';
-import type { SfConnectionProfile, AppSettings } from '../../ipc/contract.js';
+import type { SfConnectionProfile, AppSettings } from '@app/ipc-contract';
 
 const DEFAULT_PROFILE: Omit<SfConnectionProfile, 'id'> = {
   name: '',

@@ -9,7 +9,7 @@
  * 実行: npm run test:e2e
  */
 import { test, expect, setupConnectedState } from '../fixtures/electron.js';
-import type { SObjectDescribe } from '../../../src/ipc/contract.js';
+import type { SObjectDescribe } from '@app/ipc-contract';
 import { MainPagePOM } from '../pages/MainPage.js';
 import { makeSObjectSummary, makeSObjectDescribe, makeFieldDescribe } from '../../fixtures/contract.js';
 

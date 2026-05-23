@@ -19,7 +19,7 @@
   "include": [
     "src/main/**/*.ts",
     "src/preload/**/*.ts",
-    "src/ipc/**/*.ts",
+    "packages/ipc-contract/src/**/*.ts",
     "packages/libs/src/**/*.ts",
     "electron.vite.config.ts"
   ]

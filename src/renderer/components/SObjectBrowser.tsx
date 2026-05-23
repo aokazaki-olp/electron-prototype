@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Search, Table2, RefreshCw, AlertCircle } from 'lucide-react';
 import { useAppStore } from '../store.js';
-import type { SObjectDescribe } from '../../ipc/contract.js';
+import type { SObjectDescribe } from '@app/ipc-contract';
 
 const SObjectBrowserInner = (): JSX.Element => {
   const { sobjects, selectedObject, sobjectsLoading, setSobjects, setSelectedObject, setSobjectsLoading, setSoqlAndRun } = useAppStore(

@@ -4,8 +4,8 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC } from '../ipc/contract.js';
-import type { SalesforceExplorerApi, LogEntry, CsvExportOptions, SfConnectionProfile, AppSettings } from '../ipc/contract.js';
+import { IPC } from '@app/ipc-contract';
+import type { SalesforceExplorerApi, LogEntry, CsvExportOptions, SfConnectionProfile, AppSettings } from '@app/ipc-contract';
 
 const api: SalesforceExplorerApi = {
   // 設定

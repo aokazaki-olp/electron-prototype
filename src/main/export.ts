@@ -9,7 +9,7 @@ import { stringify } from 'csv-stringify/sync';
 import ExcelJS from 'exceljs';
 import { log } from './logger.js';
 import { describeObject } from './sfApi.js';
-import type { CsvExportOptions, FieldDescribe } from '../ipc/contract.js';
+import type { CsvExportOptions, FieldDescribe } from '@app/ipc-contract';
 
 // ============================================================================
 // CSV

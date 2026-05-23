@@ -6,7 +6,7 @@
 import { safeStorage } from 'electron';
 import Store from 'electron-store';
 import { BUILD } from './buildInfo.js';
-import type { AppSettings, SfConnectionProfile } from '../ipc/contract.js';
+import type { AppSettings, SfConnectionProfile } from '@app/ipc-contract';
 
 interface StoreSchema {
   settings: AppSettings;

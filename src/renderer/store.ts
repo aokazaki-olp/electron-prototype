@@ -4,7 +4,7 @@
  */
 
 import { create } from 'zustand';
-import type { SfConnectionProfile, SObjectSummary, LogEntry, AppSettings, QueryResult } from '../ipc/contract.js';
+import type { SfConnectionProfile, SObjectSummary, LogEntry, AppSettings, QueryResult } from '@app/ipc-contract';
 
 export interface SoqlTab {
   id: string;
