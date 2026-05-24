@@ -20,6 +20,9 @@ import {
 
 const REDIRECT_URI = OAUTH_CALLBACK_URL;
 
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
 // アクセストークン・インスタンスURLをメモリで保持（profileId単位）
 const accessTokenMap = new Map<string, string>();
 const instanceUrlMemory = new Map<string, string>();
@@ -68,14 +71,23 @@ const exchangeToken = async (
   }
 
   const parsed: unknown = JSON.parse(response.body);
+  if (!isPlainObject(parsed)) {
+    throw new Error('トークンレスポンスの形式が不正です');
+  }
   if (
-    typeof parsed !== 'object' || parsed === null ||
-    !('access_token' in parsed) || !('instance_url' in parsed)
+    typeof parsed['access_token'] !== 'string' ||
+    typeof parsed['instance_url'] !== 'string' ||
+    typeof parsed['token_type'] !== 'string'
   ) {
     throw new Error('トークンレスポンスの形式が不正です');
   }
-
-  return parsed as TokenResponse;
+  const refreshToken = parsed['refresh_token'];
+  return {
+    access_token: parsed['access_token'],
+    instance_url: parsed['instance_url'],
+    token_type: parsed['token_type'],
+    refresh_token: typeof refreshToken === 'string' ? refreshToken : undefined,
+  };
 };
 
 // ============================================================================
@@ -91,9 +103,18 @@ interface PendingCallback {
 
 let pendingCallback: PendingCallback | null = null;
 
+const clearPendingCallbackIf = (state: string): void => {
+  if (pendingCallback?.state === state) {
+    clearTimeout(pendingCallback.timer);
+    pendingCallback = null;
+  }
+};
+
 /**
- * OSから渡された sfexplorer:// URLを処理する。
- * main/index.ts の second-instance / open-url ハンドラから呼ぶ。
+ * OS から渡されたカスタム URL スキーム（例: `salesforce-explorer://callback?code=...`）を処理する。
+ * `app.on('second-instance')` / `open-url` ハンドラから呼び出される。
+ *
+ * @param url - OS が受け取ったコールバック URL（クエリパラメータに `code` と `state` を含む）
  */
 export const handleCallbackUrl = (url: string): void => {
   if (!pendingCallback) {
@@ -158,6 +179,14 @@ const waitForCallback = (expectedState: string): Promise<string> =>
 // 公開 API
 // ============================================================================
 
+/**
+ * OAuth 2.0 Authorization Code + PKCE フローを開始する。
+ * 外部ブラウザで Salesforce 認可ページを開き、カスタム URL スキームでコールバックを待ち受ける。
+ *
+ * @param profileId - 認証対象プロファイル ID
+ * @throws {TypeError} `profileId` に該当するプロファイルが存在しない場合
+ * @throws {Error} state 不一致 / コールバックタイムアウト (90秒) / トークン取得失敗 等
+ */
 export const startOAuth = async (profileId: string): Promise<void> => {
   const profile = getProfile(profileId);
   if (!profile) {
@@ -180,7 +209,15 @@ export const startOAuth = async (profileId: string): Promise<void> => {
   log.info(`[OAuth] 認証開始: profile=${profile.name}`);
 
   const callbackPromise = waitForCallback(state);
-  await shell.openExternal(authUrl.toString());
+
+  // shell.openExternal の失敗時に pendingCallback がリークしないよう、
+  // ここで明示的に try/catch して 90 秒タイムアウト待ちを避ける。
+  try {
+    await shell.openExternal(authUrl.toString());
+  } catch (e) {
+    clearPendingCallbackIf(state);
+    throw e;
+  }
 
   const code = await callbackPromise;
 
@@ -201,6 +238,12 @@ export const startOAuth = async (profileId: string): Promise<void> => {
   log.info(`[OAuth] 認証成功: profile=${profile.name} instance=${tokenRes.instance_url}`);
 };
 
+/**
+ * 保存済み refresh_token を使ってアクセストークンを更新する。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @returns 成功時 `true`、プロファイル不在 / refresh_token 不在 / リフレッシュ失敗時は `false`
+ */
 export const refreshAccessToken = async (profileId: string): Promise<boolean> => {
   const profile = getProfile(profileId);
   if (!profile) {
@@ -234,6 +277,11 @@ export const refreshAccessToken = async (profileId: string): Promise<boolean> =>
   }
 };
 
+/**
+ * 接続情報を破棄する（メモリ上のアクセストークン・instance URL と、永続化された refresh_token を削除）。
+ *
+ * @param profileId - 切断対象プロファイル ID
+ */
 export const disconnect = (profileId: string): void => {
   accessTokenMap.delete(profileId);
   instanceUrlMemory.delete(profileId);
@@ -241,16 +289,39 @@ export const disconnect = (profileId: string): void => {
   log.info(`[OAuth] 切断: profileId=${profileId}`);
 };
 
+/**
+ * メモリ上に保持されているアクセストークンを取得する（renderer には絶対に渡さない）。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @returns アクセストークン文字列。未取得の場合は `null`
+ */
 export const getAccessToken = (profileId: string): string | null =>
   accessTokenMap.get(profileId) ?? null;
 
+/**
+ * プロファイルに紐づく Salesforce インスタンス URL を返す（メモリ → 永続ストアの順で参照）。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @returns My Domain URL。未取得の場合は `null`
+ */
 export const getInstanceUrl = (profileId: string): string | null =>
   instanceUrlMemory.get(profileId) ?? loadInstanceUrl(profileId);
 
+/**
+ * メモリ上にアクセストークンを保持しているかを返す（= 現プロセスで「接続済み」か）。
+ *
+ * @param profileId - 対象プロファイル ID
+ */
 export const isConnected = (profileId: string): boolean =>
   accessTokenMap.has(profileId);
 
-// テストモード専用: アクセストークンを直接注入する（本番コードからは呼ばない）
+/**
+ * テストモード専用: アクセストークンを直接注入する。本番コードからは呼ばない。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param accessToken - 注入するアクセストークン
+ * @param instanceUrl - 注入する instance URL
+ */
 export const injectTokenForTest = (profileId: string, accessToken: string, instanceUrl: string): void => {
   accessTokenMap.set(profileId, accessToken);
   instanceUrlMemory.set(profileId, instanceUrl);

@@ -13,18 +13,16 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "composite": true,
+    "allowJs": true,
+    "checkJs": false,
     "noEmit": true
   },
   "include": [
-    "apps/explorer/src/main/**/*.ts",
-    "apps/explorer/src/preload/**/*.ts",
     "apps/compass/src/main/**/*.ts",
     "apps/compass/src/preload/**/*.ts",
+    "apps/compass/electron.vite.config.ts",
     "packages/ipc-contract/src/**/*.ts",
     "packages/main-core/src/**/*.ts",
-    "packages/libs/src/**/*.ts",
-    "apps/explorer/electron.vite.config.ts",
-    "apps/compass/electron.vite.config.ts"
+    "packages/libs/src/**/*.ts"
   ]
 }

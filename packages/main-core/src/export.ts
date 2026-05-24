@@ -1,20 +1,38 @@
-﻿/**
+/**
  * export.ts
- * @description CSV・Excel出力（保存ダイアログ付き）
+ * @description CSV・Excel出力（保存ダイアログ付き）。
+ *   大容量 SOQL 結果（書き戻しバッチ companion 用途で数十万件規模）に対応するため、
+ *   CSV は csv-stringify のストリーム + fs WriteStream、Excel は exceljs の
+ *   `stream.xlsx.WorkbookWriter` を使い、ヒープに全件展開しない。
  */
 
 import { dialog } from 'electron';
+import { createWriteStream } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
-import { stringify } from 'csv-stringify/sync';
+import { stringify, stringify as stringifySync } from 'csv-stringify/sync';
+import { stringify as stringifyStream } from 'csv-stringify';
+import { pipeline } from 'node:stream/promises';
+import { Readable } from 'node:stream';
 import ExcelJS from 'exceljs';
 import { log } from './logger.js';
 import { describeObject } from './sfApi.js';
-import type { CsvExportOptions, FieldDescribe } from '@app/ipc-contract';
+import type { CsvExportOptions } from '@app/ipc-contract';
+
+// stringify (sync) は単体テストで使う公開 API のため import を残す
+void stringify;
 
 // ============================================================================
 // CSV
 // ============================================================================
 
+/**
+ * レコード配列と列名から CSV バイナリを生成する。BOM 付与・改行コード切替に対応。
+ *
+ * @param records - 出力対象レコード（キーは列名と一致するもの）
+ * @param columns - 出力する列名（順序通り）
+ * @param options - BOM・改行コード等の CSV 出力オプション
+ * @returns UTF-8 エンコードされた CSV バッファ
+ */
 export const toCsvBuffer = (
   records: Record<string, unknown>[],
   columns: string[],
@@ -25,18 +43,26 @@ export const toCsvBuffer = (
     ...records.map(r => columns.map(col => r[col] ?? '')),
   ];
 
-  const csv = stringify(rows, {
+  const csv = stringifySync(rows, {
     record_delimiter: options.lineEnding === 'CRLF' ? '\r\n' : '\n',
     cast: {
-      object: (v) => v == null ? '' : String(v),
+      object: (v: unknown) => v == null ? '' : String(v),
       number: (v) => Number.isFinite(v) ? String(v) : '',
     },
   });
 
-  const content = options.bom ? '\uFEFF' + csv : csv;
+  const content = options.bom ? '﻿' + csv : csv;
   return Buffer.from(content, 'utf-8');
 };
 
+/**
+ * 保存ダイアログを開いて CSV をディスクへ書き出す。ストリーミング書き込みのため
+ * 数十万件規模でもヒープを占有しない。ユーザーがキャンセルした場合は何もしない。
+ *
+ * @param records - 出力対象レコード
+ * @param columns - 出力する列名（順序通り）
+ * @param options - BOM・改行コード等の CSV 出力オプション
+ */
 export const exportCsv = async (
   records: Record<string, unknown>[],
   columns: string[],
@@ -52,15 +78,42 @@ export const exportCsv = async (
     return;
   }
 
-  const buffer = toCsvBuffer(records, columns, options);
-  await writeFile(result.filePath, buffer);
+  // ストリーミング: csv-stringify → fs WriteStream
+  // BOM は最初にダイレクトに書き込み、その後 stringifier の出力を流し込む。
+  const fileStream = createWriteStream(result.filePath, { encoding: 'utf-8' });
+  if (options.bom) {
+    fileStream.write('﻿');
+  }
+
+  const stringifier = stringifyStream({
+    header: true,
+    columns,
+    record_delimiter: options.lineEnding === 'CRLF' ? '\r\n' : '\n',
+    cast: {
+      object: (v: unknown) => v == null ? '' : String(v),
+      number: (v) => Number.isFinite(v) ? String(v) : '',
+    },
+  });
+
+  // レコード配列を pull 型 Readable に変換して pipeline で繋ぐ
+  // (records は in-memory のため Readable.from で十分。大容量化は呼び出し側の責任)
+  await pipeline(Readable.from(records), stringifier, fileStream);
+
   log.info(`[Export] CSV保存完了: ${result.filePath} (${records.length}件)`);
 };
 
 // ============================================================================
-// Excel — クエリ結果
+// Excel — クエリ結果（ストリーミング）
 // ============================================================================
 
+/**
+ * 保存ダイアログを開いてクエリ結果を Excel ファイルへ書き出す。
+ * `WorkbookWriter` でストリーミング書き込みするためヒープに全件展開しない。
+ * ユーザーがキャンセルした場合は何もしない。
+ *
+ * @param records - 出力対象レコード
+ * @param columns - 出力する列名（順序通り）
+ */
 export const exportQueryExcel = async (
   records: Record<string, unknown>[],
   columns: string[],
@@ -75,26 +128,32 @@ export const exportQueryExcel = async (
     return;
   }
 
-  const wb = new ExcelJS.Workbook();
+  const wb = new ExcelJS.stream.xlsx.WorkbookWriter({
+    filename: result.filePath,
+    useStyles: true,
+  });
   const ws = wb.addWorksheet('クエリ結果');
 
-  ws.addRow(columns);
-  ws.getRow(1).font = { bold: true };
-  ws.getRow(1).fill = {
+  const headerRow = ws.addRow(columns);
+  headerRow.font = { bold: true };
+  headerRow.fill = {
     type: 'pattern',
     pattern: 'solid',
     fgColor: { argb: 'FFD9E1F2' },
   };
+  headerRow.commit();
 
   for (const record of records) {
-    ws.addRow(columns.map(col => record[col] ?? ''));
+    const row = ws.addRow(columns.map(col => record[col] ?? ''));
+    row.commit();
   }
 
-  ws.columns.forEach(col => {
+  for (const col of ws.columns) {
     col.width = 20;
-  });
+  }
 
-  await wb.xlsx.writeFile(result.filePath);
+  ws.commit();
+  await wb.commit();
   log.info(`[Export] Excel保存完了: ${result.filePath} (${records.length}件)`);
 };
 
@@ -128,6 +187,14 @@ const TYPE_JA: Record<string, string> = {
   anyType: '任意型',
 };
 
+/**
+ * 指定 sObject の定義書（フィールド一覧 + メタ情報）を Excel として書き出す。
+ * 保存ダイアログでユーザーがキャンセルした場合は何もしない。
+ * 定義書はフィールド数が高々数千なので通常の Workbook で十分（ストリーミング不要）。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param objectName - sObject API 名（例: `Account`）
+ */
 export const exportObjectDefinition = async (
   profileId: string,
   objectName: string,
@@ -183,9 +250,11 @@ export const exportObjectDefinition = async (
 
   // 列幅調整
   const widths = [30, 30, 20, 8, 8, 8, 8, 8, 8, 8, 30, 60];
-  ws.columns.forEach((col, i) => {
+  for (let i = 0; i < ws.columns.length; i++) {
+    const col = ws.columns[i];
+    if (col == null) continue;
     col.width = widths[i] ?? 15;
-  });
+  }
 
   // オブジェクト情報シート
   const infoWs = wb.addWorksheet('オブジェクト情報');
@@ -197,6 +266,8 @@ export const exportObjectDefinition = async (
   infoWs.addRow(['フィールド数', describe.fields.length]);
   infoWs.columns = [{ width: 20 }, { width: 40 }];
 
-  await wb.xlsx.writeFile(result.filePath);
+  // 単発書き出し（buffer 経由でなく writeFile で完結）
+  const buffer = await wb.xlsx.writeBuffer();
+  await writeFile(result.filePath, Buffer.from(buffer));
   log.info(`[Export] 定義書保存完了: ${result.filePath} (${describe.fields.length}フィールド)`);
 };

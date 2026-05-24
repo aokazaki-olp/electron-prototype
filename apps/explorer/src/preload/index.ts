@@ -1,13 +1,22 @@
 /**
- * preload/index.ts
- * @description contextBridge 経由で renderer に SalesforceExplorerApi を公開する
+ * preload/index.ts (Explorer)
+ * @description contextBridge 経由で renderer に SalesforceExplorerApi を公開する。
+ *   §11.3 に従い、起動時に EXPECTED_API_KEYS との差分を assert する自己検証を行う。
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC } from '@app/ipc-contract';
-import type { SalesforceExplorerApi, LogEntry, CsvExportOptions, SfConnectionProfile, AppSettings } from '@app/ipc-contract';
+import { IPC, EXPECTED_API_KEYS } from '@app/ipc-contract';
+import type {
+  SalesforceExplorerApi,
+  LogEntry,
+  CsvExportOptions,
+  SfConnectionProfile,
+  AppSettings,
+  LogLevel,
+  SoqlTabsState,
+} from '@app/ipc-contract';
 
-const api: SalesforceExplorerApi = {
+const api = {
   // 設定
   loadSettings: () => ipcRenderer.invoke(IPC.LOAD_SETTINGS),
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke(IPC.SAVE_SETTINGS, settings),
@@ -39,6 +48,10 @@ const api: SalesforceExplorerApi = {
     ipcRenderer.invoke(IPC.SAVE_SOQL_FILE, soql, defaultName),
   openSoqlFile: () => ipcRenderer.invoke(IPC.OPEN_SOQL_FILE),
 
+  // SOQL タブ永続化
+  loadTabs: () => ipcRenderer.invoke(IPC.LOAD_TABS),
+  saveTabs: (state: SoqlTabsState) => ipcRenderer.invoke(IPC.SAVE_TABS, state),
+
   // エクスポート
   exportCsv: (records: Record<string, unknown>[], columns: string[], options: CsvExportOptions) =>
     ipcRenderer.invoke(IPC.EXPORT_CSV, records, columns, options),
@@ -54,10 +67,24 @@ const api: SalesforceExplorerApi = {
     ipcRenderer.on(IPC.LOG_ENTRY, handler);
     return () => ipcRenderer.removeListener(IPC.LOG_ENTRY, handler);
   },
-  rendererLog: (level: string, text: string) => {
+  rendererLog: (level: LogLevel, text: string) => {
     ipcRenderer.send(IPC.RENDERER_LOG, level, text);
   },
-};
+} satisfies SalesforceExplorerApi;
+
+// §11.3 起動時 API 公開面 assertion:
+// 期待キーセットと実 api の Object.keys を比較し、差分があれば throw する。
+// Explorer ビルドに Compass の preload を誤って同梱した等の事故を早期検出する。
+const expected = new Set<string>(EXPECTED_API_KEYS.explorer);
+const actual = new Set(Object.keys(api));
+const missing = [...expected].filter(k => !actual.has(k));
+const extra = [...actual].filter(k => !expected.has(k));
+if (missing.length > 0 || extra.length > 0) {
+  throw new Error(
+    `[preload:explorer] API 公開面が EXPECTED_API_KEYS.explorer と一致しません。` +
+    ` missing=[${missing.join(', ')}] extra=[${extra.join(', ')}]`,
+  );
+}
 
 contextBridge.exposeInMainWorld('sfx', api);
 

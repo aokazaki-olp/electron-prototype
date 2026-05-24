@@ -1,6 +1,6 @@
 /**
  * sfApi.ts
- * @description Salesforce API ラッパー（describeキャッシュ・書き込みセッション管理）
+ * @description Salesforce API ラッパー（describeキャッシュ・書き込みセッション管理・「現在のプロファイル」一元管理）
  */
 
 import { SalesforceApiClient as SfClient } from '@app/libs';
@@ -15,11 +15,23 @@ import type {
 } from '@app/ipc-contract';
 
 // ============================================================================
+// 共通: 外部レスポンス用の型ガード
+// ============================================================================
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
+// ============================================================================
 // describeキャッシュ
 // ============================================================================
 
 const describeCache = new Map<string, SObjectDescribe>();
 
+/**
+ * describe キャッシュをすべて破棄する。
+ *
+ * @remarks プロファイル切替時に [[setCurrentProfile]] から自動的に呼ばれる。
+ */
 export const clearDescribeCache = (): void => {
   describeCache.clear();
   log.debug('[SF] describeキャッシュをクリアしました');
@@ -32,10 +44,20 @@ export const clearDescribeCache = (): void => {
 // profileId → 再認証した時刻 (Date.now())
 const writeSessionMap = new Map<string, number>();
 
+/**
+ * 書き込み再認証セッションを開始としてマークする。
+ *
+ * @param profileId - 再認証が完了したプロファイル ID
+ */
 export const markWriteSession = (profileId: string): void => {
   writeSessionMap.set(profileId, Date.now());
 };
 
+/**
+ * 書き込み再認証セッションを破棄する。
+ *
+ * @param profileId - 破棄対象のプロファイル ID
+ */
 export const clearWriteSession = (profileId: string): void => {
   writeSessionMap.delete(profileId);
 };
@@ -57,18 +79,49 @@ const isWriteSessionValid = (profileId: string): boolean => {
 };
 
 // ============================================================================
-// クライアント生成
+// 「現在のプロファイル」一元管理
 // ============================================================================
 
 let currentProfileId: string | null = null;
 
-export const setCurrentProfile = (profileId: string): void => {
+/**
+ * 「現在操作中のプロファイル」を切り替える。プロファイルが変わった場合は describe キャッシュも破棄する。
+ *
+ * @param profileId - 新しく操作対象とするプロファイル ID。`null` で切断扱い
+ */
+export const setCurrentProfile = (profileId: string | null): void => {
   if (currentProfileId !== profileId) {
     clearDescribeCache();
     currentProfileId = profileId;
   }
 };
 
+/**
+ * 現在操作中のプロファイル ID を返す。未設定の場合は `null`。
+ *
+ * @returns 現アクティブプロファイル ID
+ */
+export const getCurrentProfile = (): string | null => currentProfileId;
+
+/**
+ * 現アクティブプロファイル ID を取得し、未設定の場合は例外を投げる。
+ *
+ * @returns 現アクティブプロファイル ID
+ * @throws {Error} 未接続（プロファイル未選択）の場合
+ */
+export const requireCurrentProfile = (): string => {
+  if (currentProfileId == null) {
+    throw new Error('プロファイルが選択されていません');
+  }
+  return currentProfileId;
+};
+
+// ============================================================================
+// クライアント生成
+// ============================================================================
+
+// SalesforceApiClient のジェネリクスはエンドポイントごとに型が異なるため、
+// ここでは型を持たせず、呼出側で `isPlainObject` 等の型ガードで narrowing する方針。
 const getClient = (profileId: string) => {
   const accessToken = getAccessToken(profileId);
   const instanceUrl = getInstanceUrl(profileId);
@@ -91,13 +144,24 @@ const toRelativeEndpoint = (nextRecordsUrl: string): string =>
 
 // SF レスポンスのネストしたリレーション項目（Owner.Name 等）をドット記法キーにフラット化する。
 // attributes（SF内部メタデータ）は除外する。
-const flattenRecord = (record: Record<string, unknown>, prefix = ''): Record<string, unknown> => {
+// SF describe の relationship 深度は最大 5 だが、想定外データに対する DoS 防御として 10 で打ち切る。
+const FLATTEN_MAX_DEPTH = 10;
+
+const flattenRecord = (
+  record: Record<string, unknown>,
+  prefix = '',
+  depth = 0,
+): Record<string, unknown> => {
   const result: Record<string, unknown> = {};
+  if (depth >= FLATTEN_MAX_DEPTH) {
+    result[prefix || '_truncated'] = '[truncated: max depth reached]';
+    return result;
+  }
   for (const [key, value] of Object.entries(record)) {
     if (key === 'attributes') continue;
     const fullKey = prefix ? `${prefix}.${key}` : key;
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      Object.assign(result, flattenRecord(value as Record<string, unknown>, fullKey));
+    if (isPlainObject(value)) {
+      Object.assign(result, flattenRecord(value, fullKey, depth + 1));
     } else {
       result[fullKey] = value;
     }
@@ -105,17 +169,23 @@ const flattenRecord = (record: Record<string, unknown>, prefix = ''): Record<str
   return result;
 };
 
+/**
+ * Salesforce 組織内の sObject 一覧を取得する。
+ *
+ * @param profileId - 対象プロファイル ID（接続済みであること）
+ * @returns sObject のサマリ配列
+ * @throws {Error} 未接続、またはレスポンス形式が想定外の場合
+ */
 export const listSObjects = async (profileId: string): Promise<SObjectSummary[]> => {
   const client = getClient(profileId);
-  // ランタイムガード: 直後の Array.isArray チェックで構造を保証する
-  const res = await client.get('/sobjects') as { sobjects: unknown[] };
+  const raw: unknown = await client.get('/sobjects');
 
-  if (!Array.isArray(res?.sobjects)) {
+  if (!isPlainObject(raw) || !Array.isArray(raw['sobjects'])) {
     throw new Error('sObjectリストの取得に失敗しました');
   }
 
-  return res.sobjects
-    .filter((o): o is Record<string, unknown> => typeof o === 'object' && o !== null)
+  return raw['sobjects']
+    .filter((o): o is Record<string, unknown> => isPlainObject(o))
     .map(o => ({
       name: String(o['name'] ?? ''),
       label: String(o['label'] ?? ''),
@@ -129,6 +199,14 @@ export const listSObjects = async (profileId: string): Promise<SObjectSummary[]>
     .filter(o => o.name !== '');
 };
 
+/**
+ * 指定 sObject のメタデータ（フィールド・子リレーション等）を取得する。プロファイル単位でキャッシュする。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param objectName - sObject API 名（例: `Account`）
+ * @returns sObject のフィールド・子リレーションを含む describe 情報
+ * @throws {Error} 未接続、または存在しない sObject 名を指定した場合
+ */
 export const describeObject = async (profileId: string, objectName: string): Promise<SObjectDescribe> => {
   const cacheKey = `${profileId}:${objectName}`;
   const cached = describeCache.get(cacheKey);
@@ -137,12 +215,15 @@ export const describeObject = async (profileId: string, objectName: string): Pro
   }
 
   const client = getClient(profileId);
-  // ランタイムガード: 各フィールドは String()/Boolean()/Array.isArray() で型変換する
-  const res = await client.get(`/sobjects/${objectName}/describe`) as Record<string, unknown>;
+  const raw: unknown = await client.get(`/sobjects/${objectName}/describe`);
 
-  const toFields = (raw: unknown[]): FieldDescribe[] =>
-    raw
-      .filter((f): f is Record<string, unknown> => typeof f === 'object' && f !== null)
+  if (!isPlainObject(raw)) {
+    throw new Error(`describe レスポンスが不正です: ${objectName}`);
+  }
+
+  const toFields = (rawFields: unknown[]): FieldDescribe[] =>
+    rawFields
+      .filter((f): f is Record<string, unknown> => isPlainObject(f))
       .map(f => ({
         name: String(f['name'] ?? ''),
         label: String(f['label'] ?? ''),
@@ -157,17 +238,19 @@ export const describeObject = async (profileId: string, objectName: string): Pro
         referenceTo: Array.isArray(f['referenceTo']) ? f['referenceTo'].map(String) : [],
         relationshipName: f['relationshipName'] != null ? String(f['relationshipName']) : null,
         picklistValues: Array.isArray(f['picklistValues'])
-          ? (f['picklistValues'] as Record<string, unknown>[]).map(p => ({
-              label: String(p['label'] ?? ''),
-              value: String(p['value'] ?? ''),
-              active: Boolean(p['active']),
-            }))
+          ? f['picklistValues']
+              .filter((p): p is Record<string, unknown> => isPlainObject(p))
+              .map(p => ({
+                label: String(p['label'] ?? ''),
+                value: String(p['value'] ?? ''),
+                active: Boolean(p['active']),
+              }))
           : [],
       }));
 
-  const toChildRels = (raw: unknown[]) =>
-    raw
-      .filter((r): r is Record<string, unknown> => typeof r === 'object' && r !== null)
+  const toChildRels = (rawRels: unknown[]) =>
+    rawRels
+      .filter((r): r is Record<string, unknown> => isPlainObject(r))
       .map(r => ({
         childSObject: String(r['childSObject'] ?? ''),
         field: String(r['field'] ?? ''),
@@ -175,17 +258,50 @@ export const describeObject = async (profileId: string, objectName: string): Pro
       }));
 
   const describe: SObjectDescribe = {
-    name: String(res['name'] ?? ''),
-    label: String(res['label'] ?? ''),
-    labelPlural: String(res['labelPlural'] ?? ''),
-    fields: Array.isArray(res['fields']) ? toFields(res['fields']) : [],
-    childRelationships: Array.isArray(res['childRelationships']) ? toChildRels(res['childRelationships']) : [],
+    name: String(raw['name'] ?? ''),
+    label: String(raw['label'] ?? ''),
+    labelPlural: String(raw['labelPlural'] ?? ''),
+    fields: Array.isArray(raw['fields']) ? toFields(raw['fields']) : [],
+    childRelationships: Array.isArray(raw['childRelationships']) ? toChildRels(raw['childRelationships']) : [],
   };
 
   describeCache.set(cacheKey, describe);
   return describe;
 };
 
+interface QueryPage {
+  totalSize: number;
+  done: boolean;
+  records: Record<string, unknown>[];
+  nextRecordsUrl?: string;
+}
+
+const toQueryPage = (raw: unknown): QueryPage => {
+  if (!isPlainObject(raw)) {
+    throw new Error('クエリレスポンスが JSON オブジェクトではありません');
+  }
+  if (!Array.isArray(raw['records'])) {
+    throw new Error('クエリレスポンスの records フィールドが不正です');
+  }
+  const records = raw['records'].filter((r): r is Record<string, unknown> => isPlainObject(r));
+  const nextRecordsUrl = typeof raw['nextRecordsUrl'] === 'string' ? raw['nextRecordsUrl'] : undefined;
+  return {
+    totalSize: Number(raw['totalSize'] ?? 0),
+    done: Boolean(raw['done']),
+    records,
+    nextRecordsUrl,
+  };
+};
+
+/**
+ * SOQL クエリを実行する。`maxRows` まで自動でページング取得する（0 は無制限）。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param soql - 実行する SOQL 文字列
+ * @param maxRows - 最大取得件数（0 を指定するとすべて取得）
+ * @returns 取得結果（フィールドはドット記法でフラット化済み）
+ * @throws {Error} 未接続、またはレスポンス形式が想定外の場合
+ */
 export const query = async (
   profileId: string,
   soql: string,
@@ -194,37 +310,23 @@ export const query = async (
   const client = getClient(profileId);
   const records: Record<string, unknown>[] = [];
 
-  type QueryPage = {
-    totalSize: number;
-    done: boolean;
-    records: Record<string, unknown>[];
-    nextRecordsUrl?: string;
-  };
+  let page = toQueryPage(await client.get('/query', { q: soql }));
+  records.push(...page.records);
 
-  let res = await client.get('/query', { q: soql }) as QueryPage;
-
-  if (!Array.isArray(res.records)) {
-    throw new Error('クエリレスポンスの records フィールドが不正です');
-  }
-  records.push(...res.records);
-
-  while (!res.done && res.nextRecordsUrl && (maxRows === 0 || records.length < maxRows)) {
+  while (!page.done && page.nextRecordsUrl && (maxRows === 0 || records.length < maxRows)) {
     // nextRecordsUrl の /services/data/vXX.X プレフィックスを除去して baseUrl の二重化を防ぐ
-    res = await client.get(toRelativeEndpoint(res.nextRecordsUrl)) as QueryPage;
-    if (!Array.isArray(res.records)) {
-      throw new Error('クエリレスポンスの records フィールドが不正です (ページネーション)');
-    }
-    records.push(...res.records);
+    page = toQueryPage(await client.get(toRelativeEndpoint(page.nextRecordsUrl)));
+    records.push(...page.records);
   }
 
   const fetched = (maxRows === 0 ? records : records.slice(0, maxRows))
     .map(r => flattenRecord(r));
 
-  log.info(`[SF] クエリ完了: ${fetched.length}件取得 (totalSize=${res.totalSize})`);
+  log.info(`[SF] クエリ完了: ${fetched.length}件取得 (totalSize=${page.totalSize})`);
 
   return {
-    totalSize: res.totalSize,
-    done: res.done,
+    totalSize: page.totalSize,
+    done: page.done,
     records: fetched,
     fetchedCount: fetched.length,
   };
@@ -249,6 +351,15 @@ const assertWriteAllowed = (profileId: string): void => {
   }
 };
 
+/**
+ * 新規レコードを作成する。書き込みセッションが有効な readwrite プロファイルでのみ実行可能。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param objectName - sObject API 名（例: `Account`）
+ * @param fields - 作成するレコードのフィールド値
+ * @returns 作成されたレコードの ID
+ * @throws {Error} readonly プロファイル / 書き込みセッション失効時は `REAUTH_REQUIRED` を message に持つ Error を投げる
+ */
 export const createRecord = async (
   profileId: string,
   objectName: string,
@@ -256,15 +367,27 @@ export const createRecord = async (
 ): Promise<string> => {
   assertWriteAllowed(profileId);
   const client = getClient(profileId);
-  // ランタイムガード: SF は成功時に必ず { id: string } を返す (REST API仕様)
-  const res = await client.post(`/sobjects/${objectName}/`, fields) as { id: string };
+  const raw: unknown = await client.post(`/sobjects/${objectName}/`, fields);
+
+  if (!isPlainObject(raw) || typeof raw['id'] !== 'string') {
+    throw new Error('作成レスポンスに id が含まれていません');
+  }
 
   const profileForAudit = getProfile(profileId);
   if (!profileForAudit) throw new Error(`プロファイルが見つかりません: ${profileId}`);
   auditLog(profileForAudit.name, 'CREATE', objectName, 1);
-  return res.id;
+  return raw['id'];
 };
 
+/**
+ * 既存レコードを更新する。書き込みセッションが有効な readwrite プロファイルでのみ実行可能。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param objectName - sObject API 名
+ * @param id - 更新対象レコードの ID
+ * @param fields - 更新するフィールド値
+ * @throws {Error} readonly プロファイル / 書き込みセッション失効時は `REAUTH_REQUIRED` を message に持つ Error を投げる
+ */
 export const updateRecord = async (
   profileId: string,
   objectName: string,
@@ -280,6 +403,14 @@ export const updateRecord = async (
   auditLog(profileForAudit.name, 'UPDATE', `${objectName}/${id}`, 1);
 };
 
+/**
+ * 既存レコードを削除する。書き込みセッションが有効な readwrite プロファイルでのみ実行可能。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param objectName - sObject API 名
+ * @param id - 削除対象レコードの ID
+ * @throws {Error} readonly プロファイル / 書き込みセッション失効時は `REAUTH_REQUIRED` を message に持つ Error を投げる
+ */
 export const deleteRecord = async (
   profileId: string,
   objectName: string,

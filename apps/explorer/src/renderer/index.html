@@ -3,7 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <!--
+      CSP は CODING_RULES §11.2 の多層防御として、default-src 'none' ベースで必要なものだけ明示する。
+      - script-src 'self': 自前バンドル JS のみ
+      - style-src 'self' 'unsafe-inline': Tailwind の inline style 属性と CodeMirror の theme で必須
+      - img-src 'self' data:: lucide-react が出す inline SVG / data: スキーマ画像用
+      - font-src 'self' data:: 同上、フォントの data: 埋め込みを許容
+      - connect-src 'none': renderer から外部 HTTP は出さない（main に IPC で委譲）
+      - object-src/base-uri/frame-ancestors 'none': クリックジャック・base 改ざん・object 系の排除
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" />
     <title>Salesforce Explorer</title>
   </head>
   <body>

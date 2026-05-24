@@ -15,7 +15,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { SObjectSummary, SObjectDescribe, SfConnectionProfile } from '@app/ipc-contract';
+import type { SObjectSummary, SObjectDescribe, SfConnectionProfile, SoqlTabsState, QueryResult } from '@app/ipc-contract';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.resolve(__dirname, '../../..');
@@ -37,10 +37,14 @@ interface ElectronFixtures {
 export const test = base.extend<ElectronFixtures>({
   electronProcess: async ({}, use) => {
     const logLines: string[] = [];
+    // AGENTS.md の方針通り ELECTRON_RUN_AS_NODE を確実に除去する。
+    // spawn に undefined を渡すと Node のバージョンで挙動が割れるため、明示的に delete する。
+    const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'test', ELECTRON_IS_DEV: '0' };
+    delete env['ELECTRON_RUN_AS_NODE'];
     const child = spawn(
       getElectronBin(),
       [path.join(APP_ROOT, 'apps/explorer/out/main/index.js')],
-      { env: { ...process.env, NODE_ENV: 'test', ELECTRON_IS_DEV: '0', ELECTRON_RUN_AS_NODE: undefined } },
+      { env },
     );
     child.stdout?.on('data', (d: Buffer) => logLines.push('[stdout] ' + d.toString().trim()));
     child.stderr?.on('data', (d: Buffer) => logLines.push('[stderr] ' + d.toString().trim()));
@@ -62,8 +66,29 @@ export const test = base.extend<ElectronFixtures>({
 
     await use(child);
 
+    // SIGTERM だけだと Windows で child の Chromium プロセスが残り CDP ポートが解放されない。
+    // exit イベントを待ち、不発時は SIGKILL でフォールバック。
     child.kill('SIGTERM');
-    await sleep(500);
+    const exited = await Promise.race([
+      new Promise<boolean>(resolve => child.once('exit', () => resolve(true))),
+      sleep(2000).then(() => false),
+    ]);
+    if (!exited) {
+      try { child.kill('SIGKILL'); } catch { /* already dead */ }
+      await sleep(500);
+    }
+    // ポート開放確認: 次の spec の起動前に 19222 が listen 解除されるのを待つ
+    for (let i = 0; i < 20; i++) {
+      try {
+        const res = await fetch(`http://localhost:${CDP_PORT}/json/version`);
+        if (res.ok) {
+          await sleep(200);
+          continue; // まだ開いている
+        }
+      } catch {
+        break; // 接続不可 = ポート解放済み
+      }
+    }
     if (logLines.length > 0) {
       console.log('=== Electron process output ===\n' + logLines.join('\n'));
     }
@@ -90,6 +115,51 @@ export const test = base.extend<ElectronFixtures>({
 });
 
 export { expect } from '@playwright/test';
+import type { Locator } from '@playwright/test';
+
+/**
+ * Sandbox 有効な Electron renderer では Playwright 標準の `locator.click()` が
+ * CDP の物理マウスイベントを経由して renderer をクラッシュさせる既知問題がある。
+ * dispatchEvent でブラウザ内 JS から発火させればクラッシュしない。
+ *
+ * すべての click 操作はこのヘルパー経由で行うこと。
+ */
+export const safeClick = (locator: Locator): Promise<void> =>
+  locator.dispatchEvent('click');
+
+export const safeDblClick = (locator: Locator): Promise<void> =>
+  locator.dispatchEvent('dblclick');
+
+/**
+ * Playwright の `keyboard.press` は focus 依存で React の document-level
+ * keydown listener に届かないことがあるため、page 側で直接 document に
+ * KeyboardEvent を dispatch する。
+ */
+export const pressKey = (page: Page, key: string): Promise<void> =>
+  page.evaluate((k: string) => {
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+  }, key);
+
+/**
+ * checkbox/radio の trigger。Playwright の `.check()` は sandbox renderer で
+ * 物理マウスイベントを使うためクラッシュ要因になる。
+ * element.click() は内部で synthetic event のみ発火する (CDP 経由ではない) ため安全で、
+ * React の onClick + onChange + checked tracker 全部を正しく更新する。
+ */
+export const safeCheck = (locator: Locator, checked = true): Promise<void> =>
+  locator.evaluate((el, c) => {
+    if (!(el instanceof HTMLInputElement)) return;
+    if (el.checked !== c) el.click();
+  }, checked);
+
+/**
+ * focused element 内で keydown を発火させる helper。
+ * input.press('Enter') が sandbox renderer をクラッシュさせるための代替。
+ */
+export const pressKeyOn = (locator: Locator, key: string): Promise<void> =>
+  locator.evaluate((el, k: string) => {
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+  }, key);
 
 // ============================================================================
 // テストヘルパー
@@ -103,6 +173,12 @@ export type TestSetupData = {
   useRealApi?: boolean;
   accessToken?: string;
   instanceUrl?: string;
+  /** SOQL タブの初期状態。null を渡すと未設定として扱う */
+  tabs?: SoqlTabsState | null;
+  /** query() のモックレスポンス。null で「クエリは 0 件」 */
+  queryResult?: QueryResult | null;
+  /** query() を必ずエラーで終わらせる（メッセージ）。null で正常動作 */
+  queryError?: string | null;
 };
 
 /**

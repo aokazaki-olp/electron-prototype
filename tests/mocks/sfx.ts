@@ -32,10 +32,14 @@ export const makeMockSfx = (): SalesforceExplorerApi => ({
   saveSoqlFile: vi.fn().mockResolvedValue(undefined),
   openSoqlFile: vi.fn().mockResolvedValue(null),
 
+  loadTabs: vi.fn().mockResolvedValue(null),
+  saveTabs: vi.fn().mockResolvedValue(undefined),
+
   exportCsv: vi.fn().mockResolvedValue(undefined),
   exportQueryExcel: vi.fn().mockResolvedValue(undefined),
   exportObjectDefinition: vi.fn().mockResolvedValue(undefined),
 
   getRecentLogs: vi.fn().mockResolvedValue([]),
   onLogEntry: vi.fn().mockReturnValue(() => {}),
+  rendererLog: vi.fn(),
 });

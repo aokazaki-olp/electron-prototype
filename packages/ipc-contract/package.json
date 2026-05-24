@@ -2,8 +2,10 @@
   "name": "@app/ipc-contract",
   "version": "0.0.0",
   "private": true,
-  "description": "Electron IPC の型契約と定数 (main / preload / renderer 三者で共有)",
+  "description": "Electron IPC の型契約・型ガード・チャンネル定数 (main / preload / renderer 三者で共有)",
   "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts"
   }

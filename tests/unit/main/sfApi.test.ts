@@ -252,4 +252,177 @@ describe('writeSession — タイムアウト', () => {
     await expect(createRecord(PROFILE_ID, 'Account', {})).rejects.toThrow(WRITE_REQUIRED);
     vi.useRealTimers();
   });
+
+  it('writeSessionTimeoutMin=0 は毎回確認 (markWriteSession しても拒否)', async () => {
+    const rwProfile = makeProfile({ id: PROFILE_ID, mode: 'readwrite', writeSessionTimeoutMin: 0 });
+    mockGetProfile.mockReturnValue(rwProfile);
+    markWriteSession(PROFILE_ID);
+    await expect(createRecord(PROFILE_ID, 'Account', {})).rejects.toThrow(WRITE_REQUIRED);
+  });
+
+  it('境界: タイムアウト直前 (timeoutMin*60*1000 - 1ms) はまだ有効', async () => {
+    vi.useFakeTimers();
+    const rwProfile = makeProfile({ id: PROFILE_ID, mode: 'readwrite', writeSessionTimeoutMin: 5 });
+    mockGetProfile.mockReturnValue(rwProfile);
+    mockPost.mockResolvedValue({ id: 'edge-1' });
+
+    markWriteSession(PROFILE_ID);
+    vi.advanceTimersByTime(5 * 60 * 1000 - 1);
+    await expect(createRecord(PROFILE_ID, 'Account', {})).resolves.toBe('edge-1');
+    vi.useRealTimers();
+  });
+});
+
+// ============================================================
+// flattenRecord 深度・エッジケース (query 経由)
+// ============================================================
+
+describe('flattenRecord — エッジケース', () => {
+  it('深さ 9 のネストはフラット化される', async () => {
+    let value: Record<string, unknown> = { leaf: 'deep' };
+    for (let i = 9; i > 0; i--) {
+      value = { [`L${i}`]: value };
+    }
+    mockGet.mockResolvedValue({
+      totalSize: 1, done: true, records: [value],
+    });
+    const result = await query(PROFILE_ID, 'SELECT ...', 0);
+    const keys = Object.keys(result.records[0]);
+    // L1.L2.L3.L4.L5.L6.L7.L8.L9.leaf = 'deep' のキーがあるはず
+    expect(keys.length).toBeGreaterThan(0);
+    const deepKey = keys.find(k => k.includes('leaf'));
+    expect(deepKey).toBeDefined();
+  });
+
+  it('深さ 10 を超えるネストは truncated マーカーで打ち切られる (DoS 防御)', async () => {
+    let value: Record<string, unknown> = { final: 'never reached' };
+    for (let i = 15; i > 0; i--) {
+      value = { [`L${i}`]: value };
+    }
+    mockGet.mockResolvedValue({
+      totalSize: 1, done: true, records: [value],
+    });
+    const result = await query(PROFILE_ID, 'SELECT ...', 0);
+    const flat = JSON.stringify(result.records[0]);
+    expect(flat).toContain('truncated');
+    expect(flat).not.toContain('never reached');
+  });
+
+  it('attributes キーは深いネストでも除外される', async () => {
+    mockGet.mockResolvedValue({
+      totalSize: 1, done: true, records: [
+        {
+          attributes: { type: 'Account', url: '/...' },
+          Owner: {
+            attributes: { type: 'User' },
+            Name: 'Alice',
+          },
+        },
+      ],
+    });
+    const result = await query(PROFILE_ID, 'SELECT ...', 0);
+    const keys = Object.keys(result.records[0]);
+    expect(keys.every(k => !k.includes('attributes'))).toBe(true);
+    expect(result.records[0]['Owner.Name']).toBe('Alice');
+  });
+
+  it('配列値はフラット化せずそのまま保持される', async () => {
+    mockGet.mockResolvedValue({
+      totalSize: 1, done: true, records: [{ Id: 'x', items: [1, 2, 3] }],
+    });
+    const result = await query(PROFILE_ID, 'SELECT ...', 0);
+    expect(result.records[0]['items']).toEqual([1, 2, 3]);
+  });
+});
+
+// ============================================================
+// query — ページングの細かな挙動
+// ============================================================
+
+describe('query — ページング', () => {
+  it('nextRecordsUrl の /services/data/vXX.X プレフィックスを除去して次ページを取りに行く', async () => {
+    mockGet
+      .mockResolvedValueOnce({
+        totalSize: 4, done: false,
+        records: [{ Id: '1' }],
+        nextRecordsUrl: '/services/data/v59.0/query/01g-NEXT-PAGE',
+      })
+      .mockResolvedValueOnce({
+        totalSize: 4, done: true,
+        records: [{ Id: '2' }],
+      });
+
+    await query(PROFILE_ID, 'SELECT Id FROM Account', 0);
+
+    expect(mockGet).toHaveBeenNthCalledWith(1, '/query', { q: 'SELECT Id FROM Account' });
+    expect(mockGet).toHaveBeenNthCalledWith(2, '/query/01g-NEXT-PAGE');
+  });
+
+  it('maxRows に達したら nextRecordsUrl があってもページングを止める', async () => {
+    mockGet.mockResolvedValueOnce({
+      totalSize: 100, done: false,
+      records: Array.from({ length: 5 }, (_, i) => ({ Id: `r${i}` })),
+      nextRecordsUrl: '/services/data/v59.0/query/should-not-fetch',
+    });
+
+    const result = await query(PROFILE_ID, 'SELECT Id FROM Account', 5);
+    expect(result.fetchedCount).toBe(5);
+    expect(mockGet).toHaveBeenCalledTimes(1);
+  });
+
+  it('records 内のプリミティブ要素 (string 等) はフィルタで除外される', async () => {
+    mockGet.mockResolvedValue({
+      totalSize: 3, done: true,
+      records: [{ Id: '1' }, 'invalid string', null, { Id: '2' }],
+    });
+    const result = await query(PROFILE_ID, 'SELECT ...', 0);
+    expect(result.fetchedCount).toBe(2);
+    expect(result.records.map(r => r['Id'])).toEqual(['1', '2']);
+  });
+
+  it('totalSize がレスポンスに無いと 0 として扱う', async () => {
+    mockGet.mockResolvedValue({ done: true, records: [] });
+    const result = await query(PROFILE_ID, 'SELECT ...', 0);
+    expect(result.totalSize).toBe(0);
+  });
+});
+
+// ============================================================
+// setCurrentProfile / getCurrentProfile / requireCurrentProfile
+// ============================================================
+
+import {
+  setCurrentProfile,
+  getCurrentProfile,
+  requireCurrentProfile,
+} from '../../../packages/main-core/src/sfApi.js';
+
+describe('setCurrentProfile / getCurrentProfile / requireCurrentProfile', () => {
+  beforeEach(() => {
+    setCurrentProfile(null);
+  });
+
+  it('初期状態は null', () => {
+    expect(getCurrentProfile()).toBeNull();
+  });
+
+  it('setCurrentProfile 後に取得できる', () => {
+    setCurrentProfile('p-active');
+    expect(getCurrentProfile()).toBe('p-active');
+  });
+
+  it('null に戻せる (disconnect 経路)', () => {
+    setCurrentProfile('p1');
+    setCurrentProfile(null);
+    expect(getCurrentProfile()).toBeNull();
+  });
+
+  it('requireCurrentProfile は未設定で Error', () => {
+    expect(() => requireCurrentProfile()).toThrow('プロファイルが選択されていません');
+  });
+
+  it('requireCurrentProfile は設定済みで値を返す', () => {
+    setCurrentProfile('p2');
+    expect(requireCurrentProfile()).toBe('p2');
+  });
 });

@@ -12,16 +12,13 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "types": ["node", "vitest/globals"],
-    "paths": {
-      "@main/*": ["./packages/main-core/src/*"],
-      "@renderer/*": ["./apps/explorer/src/renderer/*"],
-      "@tests/*": ["./tests/*"]
-    }
+    "verbatimModuleSyntax": true,
+    "types": ["node", "vitest/globals"]
   },
   "include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
+    "apps/**/src/**/*.ts",
+    "apps/**/src/**/*.tsx",
+    "packages/**/src/**/*.ts",
     "tests/**/*.ts",
     "tests/**/*.tsx",
     "vitest.config.ts"

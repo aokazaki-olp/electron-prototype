@@ -4,7 +4,12 @@
   "private": true,
   "description": "外部リポ aokazaki-olp/libraries からコピーした共通ライブラリ層（ローカル編集禁止、SOURCE.md でハッシュ追跡）",
   "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "got": "^14"
   }
 }

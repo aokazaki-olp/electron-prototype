@@ -1,6 +1,11 @@
 /**
  * contract.ts
  * @description IPC型契約 — main / preload / renderer の三者で共有する
+ *
+ * @remarks
+ *   `Window.sfx` のグローバル拡張はここでは行わない。
+ *   各アプリの `src/renderer/global.d.ts` でそれぞれの API（[[SalesforceExplorerApi]] / [[LiteApi]]）を宣言する。
+ *   こうすることで CODING_RULES §10.3-§10.5 の「ビルド別の compile-time 差分防御」が成立する。
  */
 
 // ============================================================================
@@ -77,6 +82,22 @@ export interface QueryResult {
 }
 
 // ============================================================================
+// SOQL タブ永続化（CODING_RULES §7.3 遵守: renderer で localStorage を使わない）
+// ============================================================================
+
+export interface SoqlTabSnapshot {
+  id: string;
+  name: string;
+  soql: string;
+  fetchAll: boolean;
+}
+
+export interface SoqlTabsState {
+  tabs: SoqlTabSnapshot[];
+  activeTabId: string;
+}
+
+// ============================================================================
 // エクスポート
 // ============================================================================
 
@@ -129,6 +150,10 @@ export const IPC = {
   SAVE_SOQL_FILE: 'soql:save-file',
   OPEN_SOQL_FILE: 'soql:open-file',
 
+  // SOQL タブ永続化（CODING_RULES §7.3 遵守）
+  LOAD_TABS: 'tabs:load',
+  SAVE_TABS: 'tabs:save',
+
   // エクスポート
   EXPORT_CSV: 'export:csv',
   EXPORT_QUERY_EXCEL: 'export:query-excel',
@@ -146,6 +171,10 @@ export const IPC = {
 // preload 経由で renderer に公開する API 型
 // ============================================================================
 
+/**
+ * Explorer (フル版) が renderer に公開する API。
+ * 書き込み系・OAuth・タブ永続化・エクスポートなどすべてを含む。
+ */
 export interface SalesforceExplorerApi {
   // 設定
   loadSettings(): Promise<AppSettings>;
@@ -174,6 +203,10 @@ export interface SalesforceExplorerApi {
   saveSoqlFile(soql: string, defaultName: string): Promise<void>;
   openSoqlFile(): Promise<{ name: string; soql: string } | null>;
 
+  // SOQL タブ永続化
+  loadTabs(): Promise<SoqlTabsState | null>;
+  saveTabs(state: SoqlTabsState): Promise<void>;
+
   // エクスポート
   exportCsv(records: Record<string, unknown>[], columns: string[], options: CsvExportOptions): Promise<void>;
   exportQueryExcel(records: Record<string, unknown>[], columns: string[]): Promise<void>;
@@ -185,8 +218,49 @@ export interface SalesforceExplorerApi {
   rendererLog(level: LogLevel, text: string): void;
 }
 
-declare global {
-  interface Window {
-    sfx: SalesforceExplorerApi;
-  }
-}
+/**
+ * Compass (ライト版) が将来公開する API。読み取り系・エクスポート・ログのみ。
+ * 書き込み系・SOQL タブ管理・OAuth 起点メソッドは含まない。
+ *
+ * @remarks CODING_RULES §10.3 の方針通り「Compass では runtime ではなく
+ *   compile-time の差分で書き込み系の到達不能を担保する」ための基底型。
+ */
+export type LiteApi = Pick<SalesforceExplorerApi,
+  | 'loadSettings'
+  | 'loadProfiles'
+  | 'getAuthState'
+  | 'listSObjects'
+  | 'describeObject'
+  | 'query'
+  | 'exportCsv'
+  | 'exportQueryExcel'
+  | 'exportObjectDefinition'
+  | 'getRecentLogs'
+  | 'onLogEntry'
+  | 'rendererLog'
+>;
+
+/**
+ * §11.3 起動時 API 公開面 assertion 用: 各ビルドが公開すべき API キー集合。
+ *
+ * @remarks preload はこの定数と `Object.keys(api)` を比較し、
+ *   差分があれば起動を中断する。誤ビルド・誤同梱の早期検出が目的。
+ */
+export const EXPECTED_API_KEYS = {
+  explorer: [
+    'loadSettings', 'saveSettings', 'loadProfiles', 'saveProfile', 'deleteProfile',
+    'startOAuth', 'reauthForWrite', 'disconnect', 'getAuthState',
+    'listSObjects', 'describeObject', 'query',
+    'createRecord', 'updateRecord', 'deleteRecord',
+    'saveSoqlFile', 'openSoqlFile',
+    'loadTabs', 'saveTabs',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition',
+    'getRecentLogs', 'onLogEntry', 'rendererLog',
+  ],
+  compass: [
+    'loadSettings', 'loadProfiles', 'getAuthState',
+    'listSObjects', 'describeObject', 'query',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition',
+    'getRecentLogs', 'onLogEntry', 'rendererLog',
+  ],
+} as const satisfies Record<'explorer' | 'compass', readonly string[]>;

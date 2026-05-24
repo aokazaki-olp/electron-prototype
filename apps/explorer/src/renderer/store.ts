@@ -1,10 +1,19 @@
 /**
  * store.ts
- * @description Zustand グローバルストア
+ * @description Zustand グローバルストア。
+ *   タブ永続化は localStorage を使わず、`window.sfx.saveTabs` 経由で main プロセスの
+ *   electron-store に書く（CODING_RULES §7.3 遵守）。
  */
 
 import { create } from 'zustand';
-import type { SfConnectionProfile, SObjectSummary, LogEntry, AppSettings, QueryResult } from '@app/ipc-contract';
+import type {
+  SfConnectionProfile,
+  SObjectSummary,
+  LogEntry,
+  AppSettings,
+  QueryResult,
+  SoqlTabsState,
+} from '@app/ipc-contract';
 
 export interface SoqlTab {
   id: string;
@@ -61,7 +70,7 @@ interface AppStore {
   loadTabs: (tabs: SoqlTab[], activeTabId: string) => void;
 }
 
-export const useAppStore = create<AppStore>((set, get) => ({
+export const useAppStore = create<AppStore>((set) => ({
   settings: null,
   profiles: [],
   activeProfileId: null,
@@ -141,3 +150,16 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   loadTabs: (tabs, activeTabId) => set({ tabs, activeTabId }),
 }));
+
+// ============================================================================
+// タブ永続化（CODING_RULES §7.3 遵守）
+// ============================================================================
+
+/**
+ * `tabs` / `activeTabId` を IPC 経由で main プロセスの electron-store に保存する。
+ * `result` フィールドは永続化対象から除外する（QueryResult はランタイムの揮発データ）。
+ */
+export const persistTabs = (state: Pick<AppStore, 'tabs' | 'activeTabId'>): SoqlTabsState => ({
+  tabs: state.tabs.map(({ id, name, soql, fetchAll }) => ({ id, name, soql, fetchAll })),
+  activeTabId: state.activeTabId,
+});

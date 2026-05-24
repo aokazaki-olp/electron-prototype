@@ -4,11 +4,20 @@
  */
 
 // ビルドターゲット情報
-export { BUILD, OAUTH_CALLBACK_URL } from './buildInfo.js';
+export { BUILD, OAUTH_CALLBACK_URL, BUILD_INFO_BY_TARGET } from './buildInfo.js';
 export type { BuildTarget, BuildInfo } from './buildInfo.js';
 
 // ロガー
-export { initLogger, initAuditLogger, log, getRecentLogs, auditLog, appLogger } from './logger.js';
+export {
+  initLogger,
+  initAuditLogger,
+  log,
+  getRecentLogs,
+  auditLog,
+  appLogger,
+  toLogLevel,
+  maskSensitive,
+} from './logger.js';
 
 // 設定永続化
 export {
@@ -23,6 +32,8 @@ export {
   deleteRefreshToken,
   saveInstanceUrl,
   loadInstanceUrl,
+  loadSoqlTabs,
+  saveSoqlTabs,
 } from './settings.js';
 
 // OAuth
@@ -46,6 +57,8 @@ export {
   updateRecord,
   deleteRecord,
   setCurrentProfile,
+  getCurrentProfile,
+  requireCurrentProfile,
   markWriteSession,
   clearWriteSession,
   clearDescribeCache,

@@ -6,3 +6,4 @@ dist/
 .env.test
 test-results/
 tests/e2e/report/
+*.tsbuildinfo

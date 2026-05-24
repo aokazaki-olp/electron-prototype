@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback } from 'react';
+import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -9,7 +9,7 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Download, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Download, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle } from 'lucide-react';
 import type { QueryResult, CsvExportOptions } from '@app/ipc-contract';
 
 interface Props {
@@ -39,7 +39,9 @@ interface ExportDialogState {
 
 export const ResultTable = ({ result }: Props): JSX.Element => {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilterInput, setGlobalFilterInput] = useState('');
   const [globalFilter, setGlobalFilter] = useState('');
+  const [exportError, setExportError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [exportDialog, setExportDialog] = useState<ExportDialogState>({
     open: false,
@@ -47,10 +49,17 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
     lineEnding: 'CRLF',
   });
 
-  const columns = useMemo<ColumnDef<Record<string, unknown>>[]>(() => {
-    if (!result) return [];
-    const cols = getColumns(result.records);
-    return cols.map(col => ({
+  // 200ms debounce: 大規模クエリ結果でキーストロークごとに全行走査するのを防ぐ
+  useEffect(() => {
+    const timer = setTimeout(() => setGlobalFilter(globalFilterInput), 200);
+    return () => clearTimeout(timer);
+  }, [globalFilterInput]);
+
+  // result から派生する値はすべて useMemo で一元化（getColumns の重複呼び出しを排除）
+  const cols = useMemo(() => (result ? getColumns(result.records) : []), [result]);
+
+  const columns = useMemo<ColumnDef<Record<string, unknown>>[]>(() =>
+    cols.map(col => ({
       accessorKey: col,
       header: col,
       cell: ({ getValue }) => {
@@ -59,8 +68,7 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
         if (typeof v === 'object') return <span className="text-slate-500">[object]</span>;
         return String(v);
       },
-    }));
-  }, [result]);
+    })), [cols]);
 
   const table = useReactTable({
     data: result?.records ?? [],
@@ -85,34 +93,49 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
 
   const virtualItems = virtualizer.getVirtualItems();
   const paddingTop = virtualItems[0]?.start ?? 0;
-  const paddingBottom = virtualItems.length > 0
-    ? virtualizer.getTotalSize() - virtualItems.at(-1)!.end
+  const lastItem = virtualItems[virtualItems.length - 1];
+  const paddingBottom = lastItem != null
+    ? virtualizer.getTotalSize() - lastItem.end
     : 0;
 
   const handleExportCsv = async () => {
     if (!result) return;
-    const cols = getColumns(result.records);
     const options: CsvExportOptions = {
       bom: exportDialog.bom,
       lineEnding: exportDialog.lineEnding,
     };
+    setExportError(null);
     try {
       await window.sfx.exportCsv(result.records, cols, options);
+      setExportDialog(d => ({ ...d, open: false }));
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      window.sfx.rendererLog('error', `CSV エクスポート失敗: ${msg}`);
+      setExportError(`CSV 保存に失敗しました: ${msg}`);
     }
-    setExportDialog(d => ({ ...d, open: false }));
   };
 
   const handleExportExcel = async () => {
     if (!result) return;
-    const cols = getColumns(result.records);
+    setExportError(null);
     try {
       await window.sfx.exportQueryExcel(result.records, cols);
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      window.sfx.rendererLog('error', `Excel エクスポート失敗: ${msg}`);
+      setExportError(`Excel 保存に失敗しました: ${msg}`);
     }
   };
+
+  // モーダル: Esc クローズ
+  useEffect(() => {
+    if (!exportDialog.open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExportDialog(d => ({ ...d, open: false }));
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [exportDialog.open]);
 
   if (!result) {
     return (
@@ -121,8 +144,6 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
       </div>
     );
   }
-
-  const cols = getColumns(result.records);
 
   return (
     <div className="flex flex-col h-full">
@@ -136,12 +157,14 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
         </span>
         <input
           type="text"
-          value={globalFilter}
-          onChange={e => setGlobalFilter(e.target.value)}
+          value={globalFilterInput}
+          onChange={e => setGlobalFilterInput(e.target.value)}
           placeholder="フィルタ..."
+          aria-label="結果テーブルをフィルタ"
           className="ml-auto w-48 px-2 py-0.5 text-xs border border-slate-300 rounded outline-none focus:border-blue-500"
         />
         <button
+          type="button"
           onClick={() => setExportDialog(d => ({ ...d, open: true }))}
           className="flex items-center gap-1 px-2 py-0.5 text-xs bg-slate-200 hover:bg-slate-300 rounded"
         >
@@ -149,6 +172,7 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
           CSV
         </button>
         <button
+          type="button"
           onClick={handleExportExcel}
           className="flex items-center gap-1 px-2 py-0.5 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded"
         >
@@ -156,6 +180,14 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
           Excel
         </button>
       </div>
+
+      {/* エラー表示 */}
+      {exportError && (
+        <div role="alert" className="flex items-start gap-2 px-3 py-2 bg-red-50 border-b border-red-200 text-xs text-red-700">
+          <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+          <span>{exportError}</span>
+        </div>
+      )}
 
       {/* テーブル */}
       <div className="flex-1 overflow-auto" ref={scrollRef}>
@@ -212,9 +244,18 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
 
       {/* CSVエクスポートダイアログ */}
       {exportDialog.open && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-80">
-            <h3 className="text-sm font-semibold text-slate-800 mb-4">CSV エクスポート設定</h3>
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+          onClick={() => setExportDialog(d => ({ ...d, open: false }))}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="csv-export-title"
+            onClick={e => e.stopPropagation()}
+            className="bg-white rounded-lg shadow-xl p-6 w-80"
+          >
+            <h3 id="csv-export-title" className="text-sm font-semibold text-slate-800 mb-4">CSV エクスポート設定</h3>
             <label className="flex items-center gap-2 text-sm text-slate-700 mb-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -242,12 +283,14 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
             </div>
             <div className="flex gap-2 justify-end">
               <button
+                type="button"
                 onClick={() => setExportDialog(d => ({ ...d, open: false }))}
                 className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded"
               >
                 キャンセル
               </button>
               <button
+                type="button"
                 onClick={handleExportCsv}
                 className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
               >

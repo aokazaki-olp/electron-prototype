@@ -6,13 +6,18 @@
  *   sObject 一覧は仮想スクロールのため、画面外のアイテムは DOM に存在しない。
  *   検索ボックスで API 名 "Account" を入力して絞り込み、取引先を表示範囲内に収める。
  */
-import { test, expect, loadTestEnv } from '../fixtures/electron.js';
+import { test, expect, loadTestEnv, setupRealAuth } from '../fixtures/electron.js';
 import { MainPagePOM } from '../pages/MainPage.js';
 import type { Page } from '@playwright/test';
 
 const env = loadTestEnv();
 const ACCOUNT_LABEL = env['SF_TEST_ACCOUNT_LABEL'] ?? '取引先';
 const ACCOUNT_API_NAME = env['SF_TEST_ACCOUNT_API_NAME'] ?? 'Account';
+const hasCredentials =
+  Boolean(env['SF_CONSUMER_KEY']) &&
+  Boolean(env['SF_CONSUMER_SECRET']) &&
+  Boolean(env['SF_USERNAME']) &&
+  Boolean(env['SF_PASSWORD']);
 
 /** クラッシュ検出リスナー */
 function attachCrashDetector(page: Page): () => boolean {
@@ -27,12 +32,12 @@ function attachCrashDetector(page: Page): () => boolean {
 
 test.describe('Salesforce 実接続テスト', () => {
   test.beforeEach(async ({ window }) => {
-    await window.evaluate(async () => {
-      const setup = (window as unknown as { __testSetup__?: (d: unknown) => Promise<void> }).__testSetup__;
-      if (setup) await setup({ useRealApi: true });
-    });
-    await window.reload();
-    await window.waitForLoadState('domcontentloaded');
+    if (!hasCredentials) {
+      test.skip();
+      return;
+    }
+    // .env.test の認証情報で実 SF にログインしてアクセストークンを注入
+    await setupRealAuth(window);
   });
 
   test('シングルクリックでクラッシュしない', async ({ window }) => {

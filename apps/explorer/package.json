@@ -7,9 +7,10 @@
   "type": "module",
   "scripts": {
     "dev": "cross-env BUILD_TARGET=explorer electron-vite dev",
-    "build": "cross-env BUILD_TARGET=explorer electron-vite build",
+    "build": "cross-env BUILD_TARGET=explorer npm run gen-builder-yml && electron-vite build",
     "preview": "electron-vite preview",
-    "dist": "npm run build && electron-builder --win --config electron-builder.yml"
+    "dist": "npm run build && electron-builder --win --config electron-builder.yml",
+    "gen-builder-yml": "cross-env BUILD_TARGET=explorer node ../../scripts/gen-builder-yml.mjs"
   },
   "dependencies": {
     "@app/main-core": "*",

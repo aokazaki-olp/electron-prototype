@@ -4,9 +4,6 @@ import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { Play, AlertCircle, Plus, X, Save, FolderOpen } from 'lucide-react';
 import { useAppStore } from '../store.js';
-import type { SoqlTab } from '../store.js';
-
-const STORAGE_KEY = 'sfx-soql-tabs';
 
 // モジュールスコープで固定: レンダーのたびに新しいオブジェクトが生まれると
 // @uiw/react-codemirror が StateEffect.reconfigure を毎回実行してしまいフリーズする
@@ -21,7 +18,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   const {
     tabs, activeTabId, queryLoading, setQueryLoading,
     setSoql, setTabFetchAll, setTabResult, addTab, addTabWithContent, closeTab,
-    setActiveTabId, renameTab, loadTabs, runTrigger,
+    setActiveTabId, renameTab, runTrigger,
   } = useAppStore(
     useShallow(s => ({
       tabs: s.tabs,
@@ -36,7 +33,6 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
       closeTab: s.closeTab,
       setActiveTabId: s.setActiveTabId,
       renameTab: s.renameTab,
-      loadTabs: s.loadTabs,
       runTrigger: s.runTrigger,
     }))
   );
@@ -49,33 +45,6 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   const soql = activeTab?.soql ?? '';
   const fetchAll = activeTab?.fetchAll ?? false;
   const maxRows = fetchAll ? 0 : (settings?.defaultMaxRows ?? 2000);
-
-  // 起動時にlocalStorageから復元（activeTabId の存在確認 + fetchAll デフォルト補完）
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { tabs: unknown[]; activeTabId: string };
-      if (!Array.isArray(parsed.tabs) || parsed.tabs.length === 0) return;
-      const restored: SoqlTab[] = parsed.tabs
-        .filter((t): t is Record<string, unknown> => typeof t === 'object' && t !== null)
-        .map(t => ({
-          id: typeof t['id'] === 'string' ? t['id'] : `tab-${Date.now()}`,
-          name: typeof t['name'] === 'string' ? t['name'] : 'クエリ',
-          soql: typeof t['soql'] === 'string' ? t['soql'] : '',
-          result: null,
-          fetchAll: typeof t['fetchAll'] === 'boolean' ? t['fetchAll'] : false,
-        }));
-      const validId = restored.find(t => t.id === parsed.activeTabId)?.id ?? restored[0].id;
-      loadTabs(restored, validId);
-    } catch { /* 無視 */ }
-  }, []);
-
-  // タブ変更時に自動保存（result は除外、fetchAll は保存対象）
-  useEffect(() => {
-    const toSave = tabs.map(({ id, name, soql, fetchAll }) => ({ id, name, soql, fetchAll, result: null }));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tabs: toSave, activeTabId }));
-  }, [tabs, activeTabId]);
 
   const runQuery = useCallback(async () => {
     const trimmed = soql.trim();
@@ -114,7 +83,9 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
     try {
       await window.sfx.saveSoqlFile(soql, activeTab?.name ?? 'クエリ');
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      window.sfx.rendererLog('error', `SOQL保存失敗: ${msg}`);
+      setError(`保存に失敗しました: ${msg}`);
     }
   };
 
@@ -125,15 +96,23 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
         addTabWithContent(file.name, file.soql);
       }
     } catch (e) {
-      console.error(e);
+      const msg = e instanceof Error ? e.message : String(e);
+      window.sfx.rendererLog('error', `SOQL読み込み失敗: ${msg}`);
+      setError(`ファイルを開けませんでした: ${msg}`);
     }
   };
 
   const startRename = (tab: { id: string; name: string }) => {
     setEditingTabId(tab.id);
     setEditingName(tab.name);
-    setTimeout(() => renameInputRef.current?.select(), 0);
   };
+
+  // useLayoutEffect: 編集モード開始時にフォーカス + 全選択。setTimeout より同期的で確実。
+  useEffect(() => {
+    if (editingTabId != null) {
+      renameInputRef.current?.select();
+    }
+  }, [editingTabId]);
 
   const commitRename = () => {
     if (editingTabId && editingName.trim()) {
@@ -143,6 +122,8 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // 日本語 IME composition 中の Enter で SOQL 実行が暴発するのを防ぐ
+    if (e.nativeEvent.isComposing) return;
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       runQuery();
@@ -156,11 +137,15 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   return (
     <div className="flex flex-col h-full border-b border-slate-200">
       {/* タブバー */}
-      <div className="flex items-center border-b border-slate-200 bg-slate-100 overflow-x-auto flex-shrink-0">
+      <div className="flex items-center border-b border-slate-200 bg-slate-100 overflow-x-auto flex-shrink-0" role="tablist">
         {tabs.map(tab => (
           <div
             key={tab.id}
             onClick={() => setActiveTabId(tab.id)}
+            onDoubleClick={e => { e.stopPropagation(); startRename(tab); }}
+            role="tab"
+            aria-label={tab.name}
+            aria-selected={tab.id === activeTabId}
             className={`group flex items-center gap-1 px-3 py-1.5 text-xs whitespace-nowrap cursor-pointer border-r border-slate-200 select-none ${
               tab.id === activeTabId
                 ? 'bg-white text-slate-800 border-b-2 border-b-blue-500'
@@ -174,24 +159,25 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
                 onChange={e => setEditingName(e.target.value)}
                 onBlur={commitRename}
                 onKeyDown={e => {
+                  if (e.nativeEvent.isComposing) return;
                   if (e.key === 'Enter') commitRename();
                   if (e.key === 'Escape') setEditingTabId(null);
                   e.stopPropagation();
                 }}
                 onClick={e => e.stopPropagation()}
+                aria-label="タブ名を編集"
                 className="w-24 px-1 border border-blue-400 rounded outline-none text-xs"
               />
             ) : (
-              <span
-                className="max-w-32 truncate"
-                onDoubleClick={e => { e.stopPropagation(); startRename(tab); }}
-              >
+              <span className="max-w-32 truncate">
                 {tab.name}
               </span>
             )}
             {tabs.length > 1 && (
               <button
+                type="button"
                 onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                aria-label={`${tab.name} を閉じる`}
                 className="opacity-0 group-hover:opacity-100 hover:text-red-500 ml-0.5"
               >
                 <X size={10} />
@@ -200,18 +186,20 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
           </div>
         ))}
         <button
+          type="button"
           onClick={addTab}
           className="px-2 py-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 flex-shrink-0"
           title="新しいタブ"
+          aria-label="新しいタブを追加"
         >
           <Plus size={14} />
         </button>
       </div>
 
       {/* エディタ */}
+      {/* key を外して unmount/remount を抑止し、CodeMirror インスタンスを再利用する */}
       <div className="flex-1 overflow-hidden" onKeyDown={handleKeyDown}>
         <CodeMirror
-          key={activeTabId}
           value={soql}
           onChange={setSoql}
           extensions={CM_EXTENSIONS}
@@ -225,6 +213,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
       {/* ツールバー */}
       <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-50 border-t border-slate-200 flex-shrink-0">
         <button
+          type="button"
           onClick={runQuery}
           disabled={queryLoading || !soql.trim()}
           className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
@@ -235,6 +224,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
         <span className="text-xs text-slate-400">Ctrl+Enter</span>
         <div className="flex items-center gap-1 ml-2">
           <button
+            type="button"
             onClick={handleOpenFile}
             className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded"
             title="ファイルを開く"
@@ -242,6 +232,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
             <FolderOpen size={13} /> 開く
           </button>
           <button
+            type="button"
             onClick={handleSaveFile}
             disabled={!soql.trim()}
             className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded disabled:opacity-40"
@@ -269,7 +260,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
 
       {/* エラー表示 */}
       {error && (
-        <div className="flex items-start gap-2 px-3 py-2 bg-red-50 border-t border-red-200 text-sm text-red-700">
+        <div role="alert" className="flex items-start gap-2 px-3 py-2 bg-red-50 border-t border-red-200 text-sm text-red-700">
           <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>

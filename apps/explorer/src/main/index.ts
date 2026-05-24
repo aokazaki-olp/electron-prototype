@@ -6,7 +6,7 @@
 import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import {
   BUILD,
   initLogger,
@@ -18,6 +18,8 @@ import {
   deleteProfile,
   loadSettings,
   saveSettings,
+  loadSoqlTabs,
+  saveSoqlTabs,
   handleCallbackUrl,
   startOAuth,
   refreshAccessToken,
@@ -31,14 +33,28 @@ import {
   updateRecord,
   deleteRecord,
   setCurrentProfile,
+  getCurrentProfile,
+  requireCurrentProfile,
   markWriteSession,
   clearWriteSession,
   exportCsv,
   exportQueryExcel,
   exportObjectDefinition,
 } from '@app/main-core';
-import { IPC } from '@app/ipc-contract';
-import type { CsvExportOptions, LogEntry, SfConnectionProfile, SObjectSummary, SObjectDescribe } from '@app/ipc-contract';
+import {
+  IPC,
+  assertAppSettings,
+  assertCsvExportOptions,
+  assertLogLevel,
+  assertNumber,
+  assertProfile,
+  assertRecord,
+  assertRecordArray,
+  assertSoqlTabsState,
+  assertString,
+  assertStringArray,
+} from '@app/ipc-contract';
+import type { LogEntry, SfConnectionProfile, SObjectSummary, SObjectDescribe } from '@app/ipc-contract';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -62,6 +78,12 @@ type TestMockStore = {
   sobjects: SObjectSummary[];
   describe: Record<string, SObjectDescribe>;
   useRealApi: boolean;
+  // E2E から SOQL タブ初期状態を inject する経路
+  tabs: import('@app/ipc-contract').SoqlTabsState | null;
+  // E2E から実 SF を叩かないクエリのレスポンスを inject する経路
+  queryResult: import('@app/ipc-contract').QueryResult | null;
+  // E2E から「クエリは必ず失敗する」モードを有効化
+  queryError: string | null;
 };
 
 const testMock: TestMockStore = {
@@ -70,20 +92,24 @@ const testMock: TestMockStore = {
   sobjects: [],
   describe: {},
   useRealApi: false,
+  tabs: null,
+  queryResult: null,
+  queryError: null,
 };
 
 // ============================================================================
 // シングルインスタンス + カスタムURLスキーム
 // ============================================================================
 
-// Windows: 2つ目の起動を防ぎ、URLを最初のインスタンスに転送する
+// Windows: 2つ目の起動を防ぎ、URLを最初のインスタンスに転送する。
 // テストモードでも必ずロックを取得する。
 // OAuth コールバック時に OS が別プロセスを起動するが、ロックがあれば
 // second-instance イベント経由でこのプロセスに URL が転送される。
 // workers: 1 で実行しているため並列競合は起きない。
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
+//
+// app.exit(0) を使うのは、app.quit() が非同期で完了する間に後続コードが走ってしまう事故を避けるため。
+if (!app.requestSingleInstanceLock()) {
+  app.exit(0);
 }
 
 app.on('second-instance', (_event, argv) => {
@@ -107,17 +133,25 @@ app.on('open-url', (event, url) => {
 });
 
 // ============================================================================
-// ログ初期化
-// ============================================================================
-
-initLogger();
-initAuditLogger();
-
-// ============================================================================
 // ウィンドウ
 // ============================================================================
 
 let mainWindow: BrowserWindow | null = null;
+
+const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:']);
+
+const openExternalSafely = (url: string): void => {
+  try {
+    const u = new URL(url);
+    if (ALLOWED_EXTERNAL_PROTOCOLS.has(u.protocol)) {
+      void shell.openExternal(url);
+    } else {
+      log.warn(`[Security] 許可されていない URL スキームを拒否: ${u.protocol}`);
+    }
+  } catch {
+    log.warn(`[Security] 不正な URL を拒否: ${url}`);
+  }
+};
 
 const createWindow = (): void => {
   mainWindow = new BrowserWindow({
@@ -131,8 +165,9 @@ const createWindow = (): void => {
     },
   });
 
+  // window.open は外部ブラウザに飛ばす（http/https のみ allowlist）
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalSafely(url);
     return { action: 'deny' };
   });
 
@@ -143,34 +178,24 @@ const createWindow = (): void => {
   }
 };
 
-app.whenReady().then(() => {
-  // Windows開発環境では process.argv[1] を渡さないと URL がアプリパスとして解釈される
-  if (process.platform === 'win32') {
-    app.setAsDefaultProtocolClient(BUILD.urlScheme, process.execPath, [
-      resolve(process.argv[1] ?? ''),
-    ]);
-  } else {
-    app.setAsDefaultProtocolClient(BUILD.urlScheme);
-  }
-  registerIpcHandlers();
-  createWindow();
-
-  // electron-log → renderer ストリーミング
-  log.hooks.push((message) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      const entry: LogEntry = {
-        date: message.date.toISOString(),
-        level: message.level as LogEntry['level'],
-        text: message.data.map(String).join(' '),
-      };
-      mainWindow.webContents.send(IPC.LOG_ENTRY, entry);
-    }
-    return message;
-  });
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+// 全 webContents に対し、renderer 起点のナビゲーションを防ぐ多層防御。
+// dev 時の hot reload は ELECTRON_RENDERER_URL への navigate を許容する必要があるため、
+// ターゲットが既存の loadURL/loadFile 先と一致するかをチェックする。
+app.on('web-contents-created', (_event, contents) => {
+  contents.on('will-navigate', (event, navigationUrl) => {
+    try {
+      const target = new URL(navigationUrl);
+      const allowed = process.env['ELECTRON_RENDERER_URL'];
+      if (allowed && navigationUrl.startsWith(allowed)) {
+        return; // dev サーバへの初回 loadURL は通す
+      }
+      if (target.protocol === 'file:') {
+        return; // 本番ビルドの loadFile を通す
+      }
+      event.preventDefault();
+      openExternalSafely(navigationUrl);
+    } catch {
+      event.preventDefault();
     }
   });
 });
@@ -182,12 +207,15 @@ app.on('window-all-closed', () => {
 });
 
 // ============================================================================
-// エラーシリアライズ（機密情報をrendererに漏らさない）
+// エラーシリアライズ（機密情報を renderer に漏らさない）
 // ============================================================================
 
 const serializeError = (e: unknown): Error => {
   if (e instanceof Error) {
-    return new Error(e.message);
+    const err = new Error(e.message);
+    // §11.5 stack は renderer に渡さない（app.log に残すのは catch 側の責務）
+    err.stack = undefined;
+    return err;
   }
   return new Error(String(e));
 };
@@ -200,6 +228,8 @@ const handle = <T>(
     try {
       return await fn(...args);
     } catch (e) {
+      // §11.5: full stack は app.log にのみ残し、renderer には message のみ
+      log.error(`[IPC] ${channel} 失敗`, e);
       throw serializeError(e);
     }
   });
@@ -208,34 +238,74 @@ const handle = <T>(
 // ============================================================================
 // IPC ハンドラ登録
 // ============================================================================
-
-let activeProfileId: string | null = null;
+//
+// 設計方針: renderer → main の IPC payload は preload 経由で型付けされて来るが、
+// CODING_RULES §4.3「外部入力は unknown + 型ガード」に従い、すべてのハンドラで
+// @app/ipc-contract の assert*** ガードを通してから main-core を呼ぶ。
+// preload を信頼しすぎる多層防御の欠落を防ぐ。
 
 const registerIpcHandlers = (): void => {
   // テストモード専用: テスト用モックデータをセットアップするチャンネル
   if (isTestMode) {
     ipcMain.handle('test:setup', (_event, data: unknown) => {
-      if (typeof data !== 'object' || data === null) return;
-      const d = data as Partial<TestMockStore> & { accessToken?: string; instanceUrl?: string };
-      if (Array.isArray(d.profiles)) testMock.profiles = d.profiles;
-      if (Array.isArray(d.sobjects)) testMock.sobjects = d.sobjects;
-      if (typeof d.describe === 'object' && d.describe !== null) testMock.describe = d.describe;
-      if (typeof d.useRealApi === 'boolean') testMock.useRealApi = d.useRealApi;
-      if (typeof d.activeProfileId === 'string') {
-        testMock.activeProfileId = d.activeProfileId;
-        activeProfileId = d.activeProfileId;
-        setCurrentProfile(d.activeProfileId);
+      if (typeof data !== 'object' || data === null || Array.isArray(data)) return;
+      const d = data as Record<string, unknown>;
+      if (Array.isArray(d['profiles'])) testMock.profiles = d['profiles'] as TestMockStore['profiles'];
+      if (Array.isArray(d['sobjects'])) testMock.sobjects = d['sobjects'] as TestMockStore['sobjects'];
+      const describe = d['describe'];
+      if (typeof describe === 'object' && describe !== null && !Array.isArray(describe)) {
+        testMock.describe = describe as TestMockStore['describe'];
       }
-      // 実APIモード: アクセストークンをメモリに注入（リロード前に設定しておく必要がある）
-      if (testMock.useRealApi && typeof d.accessToken === 'string' && typeof d.instanceUrl === 'string' && activeProfileId) {
-        injectTokenForTest(activeProfileId, d.accessToken, d.instanceUrl);
+      if (typeof d['useRealApi'] === 'boolean') testMock.useRealApi = d['useRealApi'];
+      const activeProfileIdRaw = d['activeProfileId'];
+      if (typeof activeProfileIdRaw === 'string') {
+        testMock.activeProfileId = activeProfileIdRaw;
+        setCurrentProfile(activeProfileIdRaw);
+      }
+      const accessToken = d['accessToken'];
+      const instanceUrl = d['instanceUrl'];
+      const currentProfileId = getCurrentProfile();
+      if (testMock.useRealApi && typeof accessToken === 'string' && typeof instanceUrl === 'string' && currentProfileId) {
+        injectTokenForTest(currentProfileId, accessToken, instanceUrl);
+      }
+      // SOQL タブ初期状態の inject（隔離テスト用）
+      const tabs = d['tabs'];
+      if (tabs === null) {
+        testMock.tabs = null;
+      } else if (typeof tabs === 'object' && tabs !== null && !Array.isArray(tabs)) {
+        testMock.tabs = tabs as TestMockStore['tabs'];
+      }
+      // クエリレスポンスの inject
+      const queryResult = d['queryResult'];
+      if (queryResult === null) {
+        testMock.queryResult = null;
+      } else if (typeof queryResult === 'object' && queryResult !== null && !Array.isArray(queryResult)) {
+        testMock.queryResult = queryResult as TestMockStore['queryResult'];
+      }
+      const queryError = d['queryError'];
+      if (queryError === null || typeof queryError === 'string') {
+        testMock.queryError = queryError;
       }
     });
   }
 
   // 設定
-  handle(IPC.LOAD_SETTINGS, async () => loadSettings());
-  handle(IPC.SAVE_SETTINGS, async (settings) => saveSettings(settings as Parameters<typeof saveSettings>[0]));
+  // テストモード（!useRealApi）では実 electron-store を汚染しないよう、
+  // 全ての書き込み系も testMock 内に閉じ込める。
+  let mockSettings = { defaultMaxRows: 2000 };
+
+  handle(IPC.LOAD_SETTINGS, async () => {
+    if (isTestMode && !testMock.useRealApi) return mockSettings;
+    return loadSettings();
+  });
+  handle(IPC.SAVE_SETTINGS, async (settings) => {
+    assertAppSettings(settings);
+    if (isTestMode && !testMock.useRealApi) {
+      mockSettings = settings;
+      return;
+    }
+    saveSettings(settings);
+  });
   handle(IPC.LOAD_PROFILES, async () => {
     // テストモードでは testMock を唯一の真とする（実 store からの漏えいを防ぐ）。
     // ただし testMock.useRealApi が true のときだけは実 store を使う
@@ -243,50 +313,64 @@ const registerIpcHandlers = (): void => {
     if (isTestMode && !testMock.useRealApi) return testMock.profiles;
     return loadProfiles();
   });
-  handle(IPC.SAVE_PROFILE, async (profile) => saveProfile(profile as Parameters<typeof saveProfile>[0]));
-  handle(IPC.DELETE_PROFILE, async (id) => deleteProfile(String(id)));
+  handle(IPC.SAVE_PROFILE, async (profile) => {
+    assertProfile(profile);
+    if (isTestMode && !testMock.useRealApi) {
+      const idx = testMock.profiles.findIndex(p => p.id === profile.id);
+      if (idx >= 0) testMock.profiles[idx] = profile;
+      else testMock.profiles.push(profile);
+      return;
+    }
+    saveProfile(profile);
+  });
+  handle(IPC.DELETE_PROFILE, async (id) => {
+    assertString(id);
+    if (isTestMode && !testMock.useRealApi) {
+      testMock.profiles = testMock.profiles.filter(p => p.id !== id);
+      return;
+    }
+    deleteProfile(id);
+  });
 
   // 認証
   handle(IPC.START_OAUTH, async (profileId) => {
-    const id = String(profileId);
-    await startOAuth(id);
-    activeProfileId = id;
-    setCurrentProfile(id);
+    assertString(profileId);
+    await startOAuth(profileId);
+    setCurrentProfile(profileId);
   });
 
   handle(IPC.REAUTH_FOR_WRITE, async (profileId) => {
-    const id = String(profileId);
-    await startOAuth(id);
-    markWriteSession(id); // sfApi.ts からインポート済み
+    assertString(profileId);
+    await startOAuth(profileId);
+    markWriteSession(profileId);
   });
 
   handle(IPC.DISCONNECT, async (profileId) => {
-    const id = String(profileId);
-    disconnect(id);
-    clearWriteSession(id);
-    if (activeProfileId === id) {
-      activeProfileId = null;
+    assertString(profileId);
+    disconnect(profileId);
+    clearWriteSession(profileId);
+    if (getCurrentProfile() === profileId) {
+      setCurrentProfile(null);
     }
   });
 
   handle(IPC.GET_AUTH_STATE, async (profileId) => {
-    const id = String(profileId);
+    assertString(profileId);
     if (isTestMode && !testMock.useRealApi) {
       // 隔離テスト: testMock + 明示注入されたメモリトークンのみで判断する。
       // 実 store の refresh_token を使った自動リフレッシュは行わない。
-      if (testMock.activeProfileId === id && testMock.profiles.some(p => p.id === id)) {
+      if (testMock.activeProfileId === profileId && testMock.profiles.some(p => p.id === profileId)) {
         return 'connected';
       }
-      return isConnected(id) ? 'connected' : 'disconnected';
+      return isConnected(profileId) ? 'connected' : 'disconnected';
     }
-    if (isConnected(id)) {
+    if (isConnected(profileId)) {
       return 'connected';
     }
-    // refresh_tokenがあれば自動リフレッシュを試みる
-    const refreshed = await refreshAccessToken(id);
+    // refresh_token があれば自動リフレッシュを試みる
+    const refreshed = await refreshAccessToken(profileId);
     if (refreshed) {
-      activeProfileId = id;
-      setCurrentProfile(id);
+      setCurrentProfile(profileId);
       return 'connected';
     }
     return 'disconnected';
@@ -295,79 +379,81 @@ const registerIpcHandlers = (): void => {
   // SF API（読み取り）
   handle(IPC.LIST_SOBJECTS, async () => {
     if (isTestMode && !testMock.useRealApi) return testMock.sobjects;
-    if (!activeProfileId) {
-      throw new Error('プロファイルが選択されていません');
-    }
-    return listSObjects(activeProfileId);
+    return listSObjects(requireCurrentProfile());
   });
 
   handle(IPC.DESCRIBE_OBJECT, async (name) => {
+    assertString(name);
     if (isTestMode && !testMock.useRealApi) {
-      const objectName = String(name);
-      return testMock.describe[objectName] ?? {
-        name: objectName, label: objectName, labelPlural: objectName, fields: [], childRelationships: [],
+      return testMock.describe[name] ?? {
+        name, label: name, labelPlural: name, fields: [], childRelationships: [],
       };
     }
-    if (!activeProfileId) {
-      throw new Error('プロファイルが選択されていません');
-    }
-    return describeObject(activeProfileId, String(name));
+    return describeObject(requireCurrentProfile(), name);
   });
 
   handle(IPC.QUERY, async (soql, maxRows) => {
-    if (isTestMode && !testMock.useRealApi) return { totalSize: 0, done: true, records: [], fetchedCount: 0 };
-    if (!activeProfileId) {
-      throw new Error('プロファイルが選択されていません');
+    assertString(soql);
+    assertNumber(maxRows);
+    if (isTestMode && !testMock.useRealApi) {
+      if (testMock.queryError != null) {
+        throw new Error(testMock.queryError);
+      }
+      if (testMock.queryResult != null) {
+        return testMock.queryResult;
+      }
+      return { totalSize: 0, done: true, records: [], fetchedCount: 0 };
     }
-    return query(activeProfileId, String(soql), Number(maxRows));
+    return query(requireCurrentProfile(), soql, maxRows);
   });
 
   // SF API（書き込み）
   handle(IPC.CREATE_RECORD, async (objectName, fields) => {
-    if (!activeProfileId) {
-      throw new Error('プロファイルが選択されていません');
-    }
-    return createRecord(activeProfileId, String(objectName), fields as Record<string, unknown>);
+    assertString(objectName);
+    assertRecord(fields);
+    return createRecord(requireCurrentProfile(), objectName, fields);
   });
 
   handle(IPC.UPDATE_RECORD, async (objectName, id, fields) => {
-    if (!activeProfileId) {
-      throw new Error('プロファイルが選択されていません');
-    }
-    return updateRecord(activeProfileId, String(objectName), String(id), fields as Record<string, unknown>);
+    assertString(objectName);
+    assertString(id);
+    assertRecord(fields);
+    return updateRecord(requireCurrentProfile(), objectName, id, fields);
   });
 
   handle(IPC.DELETE_RECORD, async (objectName, id) => {
-    if (!activeProfileId) {
-      throw new Error('プロファイルが選択されていません');
-    }
-    return deleteRecord(activeProfileId, String(objectName), String(id));
+    assertString(objectName);
+    assertString(id);
+    return deleteRecord(requireCurrentProfile(), objectName, id);
   });
 
   // エクスポート
   handle(IPC.EXPORT_CSV, async (records, columns, options) => {
-    return exportCsv(
-      records as Record<string, unknown>[],
-      columns as string[],
-      options as CsvExportOptions,
-    );
+    assertRecordArray(records);
+    assertStringArray(columns);
+    assertCsvExportOptions(options);
+    return exportCsv(records, columns, options);
   });
 
   handle(IPC.EXPORT_QUERY_EXCEL, async (records, columns) => {
-    return exportQueryExcel(records as Record<string, unknown>[], columns as string[]);
+    assertRecordArray(records);
+    assertStringArray(columns);
+    return exportQueryExcel(records, columns);
   });
 
   handle(IPC.EXPORT_OBJECT_DEFINITION, async (objectName) => {
-    if (!activeProfileId) {
-      throw new Error('プロファイルが選択されていません');
-    }
-    return exportObjectDefinition(activeProfileId, String(objectName));
+    assertString(objectName);
+    return exportObjectDefinition(requireCurrentProfile(), objectName);
   });
 
   // SOQLファイル
   handle(IPC.SAVE_SOQL_FILE, async (soql, defaultName) => {
+    assertString(soql);
+    assertString(defaultName);
+    // defaultName のパス区切り・予約文字を _ に置換し、長すぎる場合は切り詰める
+    const safeName = defaultName.replace(/[\\/:*?"<>|]/g, '_').slice(0, 100) || 'クエリ';
     const { filePath, canceled } = await dialog.showSaveDialog({
-      defaultPath: `${String(defaultName)}.soql`,
+      defaultPath: `${safeName}.soql`,
       filters: [
         { name: 'SOQL ファイル', extensions: ['soql'] },
         { name: 'SQL ファイル', extensions: ['sql'] },
@@ -375,7 +461,7 @@ const registerIpcHandlers = (): void => {
       ],
     });
     if (canceled || !filePath) return;
-    await writeFile(filePath, String(soql), 'utf-8');
+    await writeFile(filePath, soql, 'utf-8');
   });
 
   handle(IPC.OPEN_SOQL_FILE, async () => {
@@ -387,9 +473,26 @@ const registerIpcHandlers = (): void => {
       properties: ['openFile'],
     });
     if (canceled || filePaths.length === 0 || !filePaths[0]) return null;
-    const content = await readFile(filePaths[0], 'utf-8');
-    const baseName = filePaths[0].replace(/\\/g, '/').split('/').pop()?.replace(/\.(soql|sql)$/i, '') ?? 'クエリ';
+    const path = filePaths[0];
+    const content = await readFile(path, 'utf-8');
+    const baseName = basename(path).replace(/\.(soql|sql)$/i, '') || 'クエリ';
     return { name: baseName, soql: content };
+  });
+
+  // SOQL タブ永続化（CODING_RULES §7.3 遵守: renderer の localStorage を使わない）
+  handle(IPC.LOAD_TABS, async () => {
+    // 隔離テスト: testMock.tabs を一次ソースとし、実 store からの漏れを防ぐ
+    if (isTestMode && !testMock.useRealApi) return testMock.tabs;
+    return loadSoqlTabs();
+  });
+  handle(IPC.SAVE_TABS, async (state) => {
+    assertSoqlTabsState(state);
+    if (isTestMode && !testMock.useRealApi) {
+      // 隔離テストでは testMock のみ更新し、実 store は汚染しない
+      testMock.tabs = state;
+      return;
+    }
+    saveSoqlTabs(state);
   });
 
   // ログ
@@ -397,11 +500,58 @@ const registerIpcHandlers = (): void => {
 
   // レンダラー → メインへのログ転送
   ipcMain.on(IPC.RENDERER_LOG, (_event, level: unknown, text: unknown) => {
-    const lvl = String(level);
     const msg = `[Renderer] ${String(text)}`;
-    if (lvl === 'error') { log.error(msg); }
-    else if (lvl === 'warn') { log.warn(msg); }
-    else if (lvl === 'info') { log.info(msg); }
-    else { log.debug(msg); }
+    let lvl: 'error' | 'warn' | 'info' | 'debug';
+    try {
+      assertLogLevel(level);
+      lvl = level;
+    } catch {
+      lvl = 'debug';
+    }
+    switch (lvl) {
+      case 'error': log.error(msg); break;
+      case 'warn':  log.warn(msg);  break;
+      case 'info':  log.info(msg);  break;
+      case 'debug': log.debug(msg); break;
+      default: log.debug(msg);
+    }
   });
 };
+
+// ============================================================================
+// 起動シーケンス
+// ============================================================================
+
+// Electron のトップレベル起動シーケンスを async/await に統一する
+void (async () => {
+  await app.whenReady();
+
+  // ログ初期化（broadcaster は mainWindow が生成された後に webContents.send で renderer に流す）
+  initLogger((entry: LogEntry) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC.LOG_ENTRY, entry);
+    }
+  });
+  initAuditLogger();
+
+  // process.defaultApp で開発/本番を判別し、本番 portable ビルドでは execPath のみで登録する。
+  // argv[1] が undefined / '.' のときに resolve('') = CWD が登録される事故を避ける。
+  if (process.platform === 'win32') {
+    if (process.defaultApp && process.argv.length >= 2 && process.argv[1]) {
+      app.setAsDefaultProtocolClient(BUILD.urlScheme, process.execPath, [resolve(process.argv[1])]);
+    } else {
+      app.setAsDefaultProtocolClient(BUILD.urlScheme);
+    }
+  } else {
+    app.setAsDefaultProtocolClient(BUILD.urlScheme);
+  }
+
+  registerIpcHandlers();
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+})();
