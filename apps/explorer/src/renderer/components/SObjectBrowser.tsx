@@ -131,9 +131,9 @@ const SObjectBrowserInner = (): JSX.Element => {
   };
 
   return (
-    <div className="flex flex-col h-full border-r border-slate-200">
+    <div className="flex flex-col h-full border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
       {/* 検索バー */}
-      <div className="p-2 border-b border-slate-200">
+      <div className="p-2 border-b border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-1">
           <div className="relative flex-1">
             <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -143,14 +143,14 @@ const SObjectBrowserInner = (): JSX.Element => {
               onChange={e => setSearch(e.target.value)}
               placeholder="オブジェクトを検索..."
               aria-label="オブジェクト検索"
-              className="w-full pl-7 pr-2 py-1 text-sm border border-slate-300 rounded outline-none focus:border-blue-500"
+              className="w-full pl-7 pr-2 py-1 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded outline-none focus:border-blue-500"
             />
           </div>
           <button
             type="button"
             onClick={loadSObjects}
             disabled={sobjectsLoading}
-            className="p-1 text-slate-500 hover:text-blue-600 disabled:opacity-50"
+            className="p-1 text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50"
             title="再読み込み"
             aria-label="オブジェクト一覧を再読み込み"
           >
@@ -172,8 +172,10 @@ const SObjectBrowserInner = (): JSX.Element => {
                 style={{ position: 'absolute', top: vItem.start, left: 0, width: '100%' }}
                 onClick={() => handleSelectObject(o.name)}
                 onDoubleClick={() => handleDoubleClickObject(o.name, describe)}
-                className={`text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-blue-50 border-b border-slate-100 ${
-                  selectedObject === o.name ? 'bg-blue-100 text-blue-700' : 'text-slate-700'
+                className={`text-left px-3 py-1.5 text-sm flex items-center gap-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 border-b border-slate-100 dark:border-slate-800 ${
+                  selectedObject === o.name
+                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                    : 'text-slate-700 dark:text-slate-200'
                 }`}
               >
                 <Table2 size={13} className="flex-shrink-0 text-slate-400" />
@@ -189,28 +191,28 @@ const SObjectBrowserInner = (): JSX.Element => {
 
       {/* フィールド詳細 */}
       {selectedObject && (
-        <div className="border-t border-slate-200 flex flex-col" style={{ height: '50%' }}>
-          <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 border-b border-slate-200">
-            <span className="text-xs font-semibold text-slate-600">{selectedObject}</span>
+        <div className="border-t border-slate-200 dark:border-slate-700 flex flex-col" style={{ height: '50%' }}>
+          <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{selectedObject}</span>
             <button
               type="button"
               onClick={handleExportDefinition}
-              className="text-xs text-blue-600 hover:underline"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
               定義書出力
             </button>
           </div>
           <div className="flex-1 overflow-y-auto text-xs">
             {describeLoading ? (
-              <div className="p-3 text-slate-500">読み込み中...</div>
+              <div className="p-3 text-slate-500 dark:text-slate-400">読み込み中...</div>
             ) : describe ? (
               describe.fields.map(f => (
-                <div key={f.name} className="px-3 py-1 border-b border-slate-100 hover:bg-slate-50">
+                <div key={f.name} className="px-3 py-1 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800">
                   <div className="flex items-center gap-1">
-                    <span className="font-medium text-slate-700 truncate">{f.label}</span>
+                    <span className="font-medium text-slate-700 dark:text-slate-200 truncate">{f.label}</span>
                     {f.custom && <span className="text-slate-400 text-xs">C</span>}
                   </div>
-                  <div className="text-slate-400">{f.name} · {f.type}</div>
+                  <div className="text-slate-400 dark:text-slate-500">{f.name} · {f.type}</div>
                 </div>
               ))
             ) : null}

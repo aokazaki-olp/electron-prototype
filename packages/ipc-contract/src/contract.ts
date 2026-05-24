@@ -31,12 +31,19 @@ export interface PaneSizes {
   soqlPanel: number;
 }
 
+/**
+ * 表示テーマ。`system` は OS 設定 (`prefers-color-scheme`) に追従する。
+ */
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 export interface AppSettings {
   defaultMaxRows: number;
   /** LogViewer が保持するログエントリの上限件数。`0` で無制限。 */
   logBufferSize: number;
   /** メインレイアウトのペインサイズ。ユーザーがドラッグした結果を永続化する。 */
   paneSizes: PaneSizes;
+  /** 表示テーマ (light / dark / system)。`system` は OS のダーク設定に従う。 */
+  theme: ThemeMode;
 }
 
 // ============================================================================

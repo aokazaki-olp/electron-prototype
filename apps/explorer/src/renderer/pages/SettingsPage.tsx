@@ -133,25 +133,25 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
   };
 
   return (
-    <div className="bg-slate-50 p-8">
+    <div className="bg-slate-50 dark:bg-slate-900 p-8">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-slate-800">Salesforce Explorer — 設定</h1>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Salesforce Explorer — 設定</h1>
           {onClose && (
-            <button type="button" onClick={onClose} aria-label="設定を閉じる" className="text-slate-400 hover:text-slate-600">
+            <button type="button" onClick={onClose} aria-label="設定を閉じる" className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
               <X size={20} />
             </button>
           )}
         </div>
 
         {/* 接続プロファイル */}
-        <section className="bg-white rounded-lg border border-slate-200 mb-6">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-            <h2 className="font-semibold text-slate-700">接続プロファイル</h2>
+        <section className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 mb-6">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+            <h2 className="font-semibold text-slate-700 dark:text-slate-200">接続プロファイル</h2>
             <button
               type="button"
               onClick={startNew}
-              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
+              className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700"
             >
               <Plus size={14} /> 追加
             </button>
@@ -159,46 +159,46 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
 
           {/* 新規・編集フォーム */}
           {editing && (
-            <div className="p-4 bg-blue-50 border-b border-slate-200">
-              <p className="text-sm font-medium text-slate-700 mb-3">
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/30 border-b border-slate-200 dark:border-slate-700">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200 mb-3">
                 {isNew ? '新規プロファイル' : '編集'}
               </p>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <label className="col-span-2">
-                  <span className="block text-slate-600 mb-1">プロファイル名 *</span>
+                  <span className="block text-slate-600 dark:text-slate-300 mb-1">プロファイル名 *</span>
                   <input
                     type="text"
                     value={editing.name}
                     onChange={e => setEditing(f => f && ({ ...f, name: e.target.value }))}
-                    className="w-full px-2 py-1.5 border border-slate-300 rounded outline-none focus:border-blue-500"
+                    className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded outline-none focus:border-blue-500"
                     placeholder="本番org"
                   />
                 </label>
                 <label className="col-span-2">
-                  <span className="block text-slate-600 mb-1">ログインURL</span>
+                  <span className="block text-slate-600 dark:text-slate-300 mb-1">ログインURL</span>
                   <input
                     type="text"
                     value={editing.loginUrl}
                     onChange={e => setEditing(f => f && ({ ...f, loginUrl: e.target.value }))}
-                    className="w-full px-2 py-1.5 border border-slate-300 rounded outline-none focus:border-blue-500"
+                    className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded outline-none focus:border-blue-500"
                   />
                 </label>
                 <label className="col-span-2">
-                  <span className="block text-slate-600 mb-1">Consumer Key (Client ID) *</span>
+                  <span className="block text-slate-600 dark:text-slate-300 mb-1">Consumer Key (Client ID) *</span>
                   <input
                     type="text"
                     value={editing.clientId}
                     onChange={e => setEditing(f => f && ({ ...f, clientId: e.target.value }))}
-                    className="w-full px-2 py-1.5 border border-slate-300 rounded font-mono text-xs outline-none focus:border-blue-500"
+                    className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded font-mono text-xs outline-none focus:border-blue-500"
                     placeholder="3MVG9..."
                   />
                 </label>
                 <label>
-                  <span className="block text-slate-600 mb-1">モード</span>
+                  <span className="block text-slate-600 dark:text-slate-300 mb-1">モード</span>
                   <select
                     value={editing.mode}
                     onChange={e => setEditing(f => f && ({ ...f, mode: toMode(e.target.value) }))}
-                    className="w-full px-2 py-1.5 border border-slate-300 rounded outline-none focus:border-blue-500"
+                    className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded outline-none focus:border-blue-500"
                   >
                     <option value="readonly">読み取り専用</option>
                     <option value="readwrite">読み取り/書き込み</option>
@@ -206,11 +206,11 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
                 </label>
                 {editing.mode === 'readwrite' && (
                   <label>
-                    <span className="block text-slate-600 mb-1">書き込みセッション有効期間</span>
+                    <span className="block text-slate-600 dark:text-slate-300 mb-1">書き込みセッション有効期間</span>
                     <select
                       value={editing.writeSessionTimeoutMin}
                       onChange={e => setEditing(f => f && ({ ...f, writeSessionTimeoutMin: Number(e.target.value) }))}
-                      className="w-full px-2 py-1.5 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded outline-none focus:border-blue-500"
                     >
                       <option value={0}>毎回確認</option>
                       <option value={5}>5分</option>
@@ -222,7 +222,7 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
                 )}
               </div>
               <div className="flex gap-2 mt-3 justify-end">
-                <button type="button" onClick={cancelEdit} className="flex items-center gap-1 text-sm text-slate-600 hover:text-slate-800">
+                <button type="button" onClick={cancelEdit} className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100">
                   <X size={13} /> キャンセル
                 </button>
                 <button
@@ -239,25 +239,25 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
 
           {/* プロファイル一覧 */}
           {profiles.length === 0 && !editing ? (
-            <div className="px-4 py-6 text-center text-sm text-slate-400">
+            <div className="px-4 py-6 text-center text-sm text-slate-400 dark:text-slate-500">
               プロファイルがありません。「追加」から作成してください。
             </div>
           ) : (
             profiles.map(p => (
-              <div key={p.id} className="px-4 py-3 border-b border-slate-100 last:border-0">
+              <div key={p.id} className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-slate-800 truncate">{p.name}</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-100 truncate">{p.name}</span>
                       <span className={`text-xs px-1.5 py-0.5 rounded ${
                         p.mode === 'readonly'
-                          ? 'bg-slate-100 text-slate-500'
-                          : 'bg-orange-100 text-orange-600'
+                          ? 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300'
+                          : 'bg-orange-100 dark:bg-orange-900/40 text-orange-600 dark:text-orange-300'
                       }`}>
                         {p.mode === 'readonly' ? '読み取り専用' : '読み書き'}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-400 truncate">{p.loginUrl}</div>
+                    <div className="text-xs text-slate-400 dark:text-slate-500 truncate">{p.loginUrl}</div>
                   </div>
                   <button
                     type="button"
@@ -268,10 +268,10 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
                     <Wifi size={12} />
                     {connecting === p.id ? '接続中...' : '接続'}
                   </button>
-                  <button type="button" onClick={() => startEdit(p)} aria-label={`${p.name} を編集`} className="text-slate-400 hover:text-blue-600">
+                  <button type="button" onClick={() => startEdit(p)} aria-label={`${p.name} を編集`} className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400">
                     <Edit2 size={14} />
                   </button>
-                  <button type="button" onClick={() => setDeleteConfirm(p.id)} aria-label={`${p.name} を削除`} className="text-slate-400 hover:text-red-600">
+                  <button type="button" onClick={() => setDeleteConfirm(p.id)} aria-label={`${p.name} を削除`} className="text-slate-400 hover:text-red-600 dark:hover:text-red-400">
                     <Trash2 size={14} />
                   </button>
                 </div>
@@ -282,35 +282,47 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
 
         {/* アプリ設定 */}
         {settings && (
-          <section className="bg-white rounded-lg border border-slate-200">
-            <div className="px-4 py-3 border-b border-slate-200">
-              <h2 className="font-semibold text-slate-700">クエリ設定</h2>
+          <section className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+              <h2 className="font-semibold text-slate-700 dark:text-slate-200">クエリ設定</h2>
             </div>
             <div className="px-4 py-4 space-y-3">
-              <label className="text-sm text-slate-700 block">
+              <label className="text-sm text-slate-700 dark:text-slate-200 block">
                 デフォルト最大取得件数
                 <select
                   value={settings.defaultMaxRows}
                   onChange={e => saveAppSettings({ defaultMaxRows: Number(e.target.value) })}
-                  className="ml-3 px-2 py-1 border border-slate-300 rounded text-sm outline-none focus:border-blue-500"
+                  className="ml-3 px-2 py-1 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded text-sm outline-none focus:border-blue-500"
                 >
                   {[500, 1000, 2000, 5000, 10000, 0].map(n => (
                     <option key={n} value={n}>{n === 0 ? '無制限' : n.toLocaleString()}</option>
                   ))}
                 </select>
               </label>
-              <label className="text-sm text-slate-700 block">
+              <label className="text-sm text-slate-700 dark:text-slate-200 block">
                 ログの保持件数
                 <select
                   value={settings.logBufferSize}
                   onChange={e => saveAppSettings({ logBufferSize: Number(e.target.value) })}
-                  className="ml-3 px-2 py-1 border border-slate-300 rounded text-sm outline-none focus:border-blue-500"
+                  className="ml-3 px-2 py-1 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded text-sm outline-none focus:border-blue-500"
                 >
                   {[500, 1000, 5000, 10000, 0].map(n => (
                     <option key={n} value={n}>{n === 0 ? '無制限' : n.toLocaleString()}</option>
                   ))}
                 </select>
                 <span className="ml-2 text-xs text-slate-400">無制限はメモリに注意</span>
+              </label>
+              <label className="text-sm text-slate-700 dark:text-slate-200 block">
+                テーマ
+                <select
+                  value={settings.theme}
+                  onChange={e => saveAppSettings({ theme: e.target.value as AppSettings['theme'] })}
+                  className="ml-3 px-2 py-1 border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded text-sm outline-none focus:border-blue-500"
+                >
+                  <option value="system">OS に従う</option>
+                  <option value="light">ライト</option>
+                  <option value="dark">ダーク</option>
+                </select>
               </label>
             </div>
           </section>
@@ -328,12 +340,12 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
             aria-modal="true"
             aria-labelledby="delete-confirm-title"
             onClick={e => e.stopPropagation()}
-            className="bg-white rounded-lg shadow-xl p-6 w-80"
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-80"
           >
-            <h3 id="delete-confirm-title" className="text-sm font-semibold text-slate-800 mb-2">プロファイルを削除</h3>
-            <p className="text-sm text-slate-600 mb-4">この操作は取り消せません。続行しますか？</p>
+            <h3 id="delete-confirm-title" className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-2">プロファイルを削除</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">この操作は取り消せません。続行しますか？</p>
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded">
+              <button type="button" onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded">
                 キャンセル
               </button>
               <button type="button" onClick={() => deleteProfile(deleteConfirm)} className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700">

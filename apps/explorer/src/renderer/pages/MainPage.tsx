@@ -162,7 +162,7 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
   const buttonHover = isWriteMode ? 'hover:bg-orange-700' : 'hover:bg-slate-700';
 
   return (
-    <div className="flex flex-col h-screen bg-white">
+    <div className="flex flex-col h-screen bg-white dark:bg-slate-900">
       {/* ヘッダー: アプリ名 / org 名 / 環境バッジ / モードバッジ / 設定・切断 */}
       <header className={`flex items-center gap-3 px-4 py-2 text-white flex-shrink-0 ${headerBg}`}>
         <span className="font-semibold text-sm">Salesforce Explorer</span>
@@ -227,7 +227,7 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
         </Panel>
 
         <PanelResizeHandle
-          className="w-1 bg-slate-200 hover:bg-blue-300 active:bg-blue-400 transition-colors"
+          className="w-1 bg-slate-200 dark:bg-slate-700 hover:bg-blue-300 dark:hover:bg-blue-500 active:bg-blue-400 transition-colors"
           aria-label="左ペインの幅を調整"
         />
 
@@ -250,7 +250,7 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
             </Panel>
 
             <PanelResizeHandle
-              className="h-1 bg-slate-200 hover:bg-blue-300 active:bg-blue-400 transition-colors"
+              className="h-1 bg-slate-200 dark:bg-slate-700 hover:bg-blue-300 dark:hover:bg-blue-500 active:bg-blue-400 transition-colors"
               aria-label="エディタと結果の高さを調整"
             />
 
@@ -258,7 +258,7 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
             <Panel id="main-bottom" className="overflow-hidden">
               <div className="flex flex-col h-full">
                 {/* タブバー */}
-                <div role="tablist" className="flex items-center border-b border-slate-200 bg-slate-50 flex-shrink-0">
+                <div role="tablist" className="flex items-center border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex-shrink-0">
                   {BOTTOM_TABS.map(key => (
                     <button
                       key={key}
@@ -268,8 +268,8 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
                       onClick={() => setBottomTab(key)}
                       className={`px-4 py-1.5 text-xs font-medium border-b-2 ${
                         bottomTab === key
-                          ? 'border-blue-600 text-blue-600'
-                          : 'border-transparent text-slate-500 hover:text-slate-700'
+                          ? 'border-blue-600 text-blue-500 dark:text-blue-400'
+                          : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                       }`}
                     >
                       {tabLabel(key)}

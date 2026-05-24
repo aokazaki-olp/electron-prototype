@@ -10,6 +10,7 @@ export const makeMockSfx = (): SalesforceExplorerApi => ({
     defaultMaxRows: 2000,
     logBufferSize: 1000,
     paneSizes: { leftPanel: 18, soqlPanel: 40 },
+    theme: 'system',
   }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
   loadProfiles: vi.fn().mockResolvedValue([]),

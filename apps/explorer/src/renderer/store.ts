@@ -52,6 +52,10 @@ interface AppStore {
   // ログビューアー
   logs: LogEntry[];
 
+  // テーマ (useTheme hook が settings.theme + prefers-color-scheme から導出して書き込む)
+  isDark: boolean;
+  setIsDark: (v: boolean) => void;
+
   // アクション
   setSettings: (s: AppSettings) => void;
   setProfiles: (p: SfConnectionProfile[]) => void;
@@ -96,8 +100,10 @@ export const useAppStore = create<AppStore>((set) => ({
   queryLoading: false,
   runTrigger: 0,
   logs: [],
+  isDark: false,
 
   setSettings: (settings) => set({ settings }),
+  setIsDark: (isDark) => set({ isDark }),
   setProfiles: (profiles) => set({ profiles }),
   setActiveProfileId: (activeProfileId) => set({ activeProfileId }),
   setAuthState: (authState) => set({ authState }),

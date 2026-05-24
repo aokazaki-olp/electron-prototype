@@ -27,7 +27,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   const {
     tabs, activeTabId, queryLoading, setQueryLoading,
     setSoql, setTabFetchAll, setTabResult, addTab, addTabWithContent, closeTab,
-    setActiveTabId, renameTab, runTrigger,
+    setActiveTabId, renameTab, runTrigger, isDark,
   } = useAppStore(
     useShallow(s => ({
       tabs: s.tabs,
@@ -43,6 +43,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
       setActiveTabId: s.setActiveTabId,
       renameTab: s.renameTab,
       runTrigger: s.runTrigger,
+      isDark: s.isDark,
     }))
   );
   const [error, setError] = useState<string | null>(null);
@@ -150,9 +151,9 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   };
 
   return (
-    <div className="flex flex-col h-full border-b border-slate-200">
+    <div className="flex flex-col h-full border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
       {/* タブバー */}
-      <div className="flex items-center border-b border-slate-200 bg-slate-100 overflow-x-auto flex-shrink-0" role="tablist">
+      <div className="flex items-center border-b border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 overflow-x-auto flex-shrink-0" role="tablist">
         {tabs.map(tab => (
           <div
             key={tab.id}
@@ -161,10 +162,10 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
             role="tab"
             aria-label={tab.name}
             aria-selected={tab.id === activeTabId}
-            className={`group flex items-center gap-1 px-3 py-1.5 text-xs whitespace-nowrap cursor-pointer border-r border-slate-200 select-none ${
+            className={`group flex items-center gap-1 px-3 py-1.5 text-xs whitespace-nowrap cursor-pointer border-r border-slate-200 dark:border-slate-700 select-none ${
               tab.id === activeTabId
-                ? 'bg-white text-slate-800 border-b-2 border-b-blue-500'
-                : 'text-slate-500 hover:bg-slate-200'
+                ? 'bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 border-b-2 border-b-blue-500'
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
             }`}
           >
             {editingTabId === tab.id ? (
@@ -203,7 +204,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
         <button
           type="button"
           onClick={addTab}
-          className="px-2 py-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 flex-shrink-0"
+          className="px-2 py-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0"
           title="新しいタブ"
           aria-label="新しいタブを追加"
         >
@@ -219,14 +220,14 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
           onChange={setSoql}
           extensions={CM_EXTENSIONS}
           height="100%"
-          theme="light"
+          theme={isDark ? 'dark' : 'light'}
           basicSetup={CM_BASIC_SETUP}
           className="h-full text-sm"
         />
       </div>
 
       {/* ツールバー */}
-      <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-50 border-t border-slate-200 flex-shrink-0">
+      <div className="flex items-center gap-3 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
         <button
           type="button"
           onClick={runQuery}
@@ -238,13 +239,13 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
             ? (executionMode === 'bulk' ? 'Bulk実行中...' : '実行中...')
             : '実行'}
         </button>
-        <span className="text-xs text-slate-400">Ctrl+Enter</span>
+        <span className="text-xs text-slate-400 dark:text-slate-500">Ctrl+Enter</span>
 
         {/* 実行方式 (REST / Bulk) */}
         <div
           role="radiogroup"
           aria-label="実行方式"
-          className="flex items-center gap-2 text-xs text-slate-600 ml-1 border-l border-slate-300 pl-3"
+          className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 ml-1 border-l border-slate-300 dark:border-slate-600 pl-3"
         >
           <span>方式:</span>
           <label className="flex items-center gap-1 cursor-pointer">
@@ -275,7 +276,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
           <button
             type="button"
             onClick={handleOpenFile}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded"
+            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"
             title="ファイルを開く"
           >
             <FolderOpen size={13} /> 開く
@@ -284,7 +285,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
             type="button"
             onClick={handleSaveFile}
             disabled={!soql.trim()}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded disabled:opacity-40"
+            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded disabled:opacity-40"
             title="名前を付けて保存 (Ctrl+S)"
           >
             <Save size={13} /> 保存
@@ -293,7 +294,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
 
         <label
           className={`flex items-center gap-1 text-xs ml-auto ${
-            executionMode === 'bulk' ? 'text-slate-400 cursor-not-allowed' : 'text-slate-600 cursor-pointer'
+            executionMode === 'bulk' ? 'text-slate-400 dark:text-slate-500 cursor-not-allowed' : 'text-slate-600 dark:text-slate-300 cursor-pointer'
           }`}
           title={executionMode === 'bulk' ? 'Bulk は常に全件取得するため件数制限は無効です' : undefined}
         >
@@ -305,17 +306,17 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
             className="accent-blue-500"
           />
           件数制限を無効にして全件取得
-          {fetchAll && executionMode !== 'bulk' && <span className="text-yellow-600 font-medium">（大量データに注意）</span>}
+          {fetchAll && executionMode !== 'bulk' && <span className="text-yellow-600 dark:text-yellow-400 font-medium">（大量データに注意）</span>}
         </label>
 
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-400 dark:text-slate-500">
           上限: {executionMode === 'bulk' ? '全件 (Bulk)' : fetchAll ? '無制限' : `${maxRows.toLocaleString()}件`}
         </span>
       </div>
 
       {/* エラー表示 */}
       {error && (
-        <div role="alert" className="flex items-start gap-2 px-3 py-2 bg-red-50 border-t border-red-200 text-sm text-red-700">
+        <div role="alert" className="flex items-start gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/30 border-t border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
           <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
           <span>{error}</span>
         </div>

@@ -108,36 +108,45 @@ beforeEach(() => {
 
 describe('loadSettings / saveSettings', () => {
   const DEFAULT_PANE_SIZES = { leftPanel: 18, soqlPanel: 40 };
+  const DEFAULT_THEME = 'system' as const;
 
-  it('未保存ならデフォルト (defaultMaxRows=2000, logBufferSize=1000, paneSizes) を返す', () => {
+  it('未保存ならデフォルト (defaultMaxRows=2000, logBufferSize=1000, paneSizes, theme=system) を返す', () => {
     expect(loadSettings()).toEqual({
       defaultMaxRows: 2000,
       logBufferSize: 1000,
       paneSizes: DEFAULT_PANE_SIZES,
+      theme: DEFAULT_THEME,
     });
   });
 
   it('saveSettings 後は loadSettings で読み戻せる', () => {
-    const next = { defaultMaxRows: 500, logBufferSize: 5000, paneSizes: { leftPanel: 25, soqlPanel: 50 } };
+    const next = {
+      defaultMaxRows: 500,
+      logBufferSize: 5000,
+      paneSizes: { leftPanel: 25, soqlPanel: 50 },
+      theme: 'dark' as const,
+    };
     saveSettings(next);
     expect(loadSettings()).toEqual(next);
   });
 
   it('saveSettings は全体上書き (部分マージしない)', () => {
-    saveSettings({ defaultMaxRows: 1000, logBufferSize: 1000, paneSizes: DEFAULT_PANE_SIZES });
-    saveSettings({ defaultMaxRows: 5000, logBufferSize: 5000, paneSizes: { leftPanel: 30, soqlPanel: 55 } });
+    saveSettings({ defaultMaxRows: 1000, logBufferSize: 1000, paneSizes: DEFAULT_PANE_SIZES, theme: 'light' });
+    saveSettings({ defaultMaxRows: 5000, logBufferSize: 5000, paneSizes: { leftPanel: 30, soqlPanel: 55 }, theme: 'dark' });
     expect(loadSettings().defaultMaxRows).toBe(5000);
     expect(loadSettings().logBufferSize).toBe(5000);
     expect(loadSettings().paneSizes).toEqual({ leftPanel: 30, soqlPanel: 55 });
+    expect(loadSettings().theme).toBe('dark');
   });
 
   it('既存 store に新しいフィールドが無くてもデフォルトで補完される (schema migration 代替)', () => {
-    // 古いバージョンが書き込んだ「logBufferSize / paneSizes のない settings」を直接 store に注入
+    // 古いバージョンが書き込んだ「logBufferSize / paneSizes / theme のない settings」を直接 store に注入
     mockStoreData.primary.settings = { defaultMaxRows: 3000 };
     expect(loadSettings()).toEqual({
       defaultMaxRows: 3000,
       logBufferSize: 1000,
       paneSizes: DEFAULT_PANE_SIZES,
+      theme: DEFAULT_THEME,
     });
   });
 });
@@ -308,7 +317,12 @@ describe('loadSoqlTabs / saveSoqlTabs', () => {
   });
 
   it('プライマリ store と分離 (settings には影響しない)', () => {
-    saveSettings({ defaultMaxRows: 1234, logBufferSize: 1000, paneSizes: { leftPanel: 18, soqlPanel: 40 } });
+    saveSettings({
+      defaultMaxRows: 1234,
+      logBufferSize: 1000,
+      paneSizes: { leftPanel: 18, soqlPanel: 40 },
+      theme: 'system',
+    });
     saveSoqlTabs({ tabs: [{ id: 'x', name: 'X', soql: '', fetchAll: false }], activeTabId: 'x' });
     // primary store の settings は無事
     expect(loadSettings().defaultMaxRows).toBe(1234);

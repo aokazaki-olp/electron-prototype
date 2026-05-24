@@ -71,25 +71,28 @@ const SkeletonTable = ({ colCount }: { colCount: number }): JSX.Element => {
       aria-label="読み込み中"
       data-testid="result-skeleton"
     >
-      <thead className="sticky top-0 bg-slate-100 z-10">
+      <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 z-10">
         <tr>
           {Array.from({ length: colCount }).map((_, i) => (
             <th
               key={i}
-              className="px-2 py-1.5 text-left border-b border-r border-slate-200"
+              className="px-2 py-1.5 text-left border-b border-r border-slate-200 dark:border-slate-700"
             >
-              <div className="h-3 w-20 bg-slate-300/70 rounded animate-pulse" />
+              <div className="h-3 w-20 bg-slate-300/70 dark:bg-slate-600/70 rounded animate-pulse" />
             </th>
           ))}
         </tr>
       </thead>
       <tbody>
         {Array.from({ length: rowCount }).map((_, r) => (
-          <tr key={r} className={r % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+          <tr
+            key={r}
+            className={r % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/50'}
+          >
             {Array.from({ length: colCount }).map((_, c) => (
-              <td key={c} className="px-2 py-1.5 border-b border-r border-slate-100">
+              <td key={c} className="px-2 py-1.5 border-b border-r border-slate-100 dark:border-slate-800">
                 <div
-                  className="h-2.5 bg-slate-200 rounded animate-pulse"
+                  className="h-2.5 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"
                   style={{ width: `${50 + ((r + c) * 13) % 40}%` }}
                 />
               </td>
@@ -297,21 +300,21 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
   // 結果がまだ無く実行中でもない: 空状態 (スニペット) を表示
   if (!result && !queryLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-3 px-6 py-8">
+      <div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 text-sm gap-3 px-6 py-8 bg-white dark:bg-slate-900">
         <p>SOQLを実行すると結果が表示されます</p>
         {onSnippetClick && (
           <div className="flex flex-col gap-1.5 max-w-2xl w-full">
-            <p className="text-xs text-slate-500 mt-3 mb-1">まず試してみる:</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 mb-1">まず試してみる:</p>
             {EMPTY_STATE_SNIPPETS.map(s => (
               <button
                 key={s.soql}
                 type="button"
                 onClick={() => onSnippetClick(s.soql)}
-                className="text-left px-3 py-2 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded transition-colors"
+                className="text-left px-3 py-2 bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-slate-200 dark:border-slate-700 hover:border-blue-300 rounded transition-colors"
                 title={`エディタにセット: ${s.soql}`}
               >
-                <span className="block text-xs text-slate-600 mb-0.5">{s.label}</span>
-                <span className="block text-xs font-mono text-slate-700 truncate">{s.soql}</span>
+                <span className="block text-xs text-slate-600 dark:text-slate-300 mb-0.5">{s.label}</span>
+                <span className="block text-xs font-mono text-slate-700 dark:text-slate-200 truncate">{s.soql}</span>
               </button>
             ))}
           </div>
@@ -321,19 +324,19 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900">
       {/* ツールバー */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-200 flex-shrink-0">
-        <span className="text-xs text-slate-600">
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+        <span className="text-xs text-slate-600 dark:text-slate-300">
           {result ? (
             <>
               {result.fetchedCount.toLocaleString()}件取得
               {result.totalSize > result.fetchedCount && (
-                <span className="text-yellow-600">（全体: {result.totalSize.toLocaleString()}件）</span>
+                <span className="text-yellow-600 dark:text-yellow-400">（全体: {result.totalSize.toLocaleString()}件）</span>
               )}
             </>
           ) : (
-            <span className="text-slate-400">実行中...</span>
+            <span className="text-slate-400 dark:text-slate-500">実行中...</span>
           )}
         </span>
         <input
@@ -343,7 +346,7 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
           placeholder="フィルタ..."
           aria-label="結果テーブルをフィルタ"
           disabled={!result || queryLoading}
-          className="ml-auto w-48 px-2 py-0.5 text-xs border border-slate-300 rounded outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
+          className="ml-auto w-48 px-2 py-0.5 text-xs border border-slate-300 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 rounded outline-none focus:border-blue-500 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
         />
         {/* エクスポート: CSV (quick) / CSV 詳細 / Excel をまとめた dropdown */}
         <div className="relative" ref={exportMenuRef}>
@@ -353,7 +356,7 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
             disabled={!result || queryLoading}
             aria-haspopup="menu"
             aria-expanded={exportMenuOpen}
-            className="flex items-center gap-1 px-2 py-0.5 text-xs bg-slate-200 hover:bg-slate-300 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 px-2 py-0.5 text-xs bg-slate-200 dark:bg-slate-700 dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-600 rounded disabled:opacity-40 disabled:cursor-not-allowed"
           >
             エクスポート
             <ChevronDown size={12} />
@@ -362,13 +365,13 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
             <div
               role="menu"
               aria-label="エクスポート形式"
-              className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded shadow-lg z-30 py-1"
+              className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded shadow-lg z-30 py-1"
             >
               <button
                 type="button"
                 role="menuitem"
                 onClick={handleQuickCsv}
-                className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 text-slate-700"
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-700 dark:text-slate-200"
               >
                 CSV (BOM + CRLF)
               </button>
@@ -376,16 +379,16 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
                 type="button"
                 role="menuitem"
                 onClick={openCsvDetailDialog}
-                className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 text-slate-700"
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 text-slate-700 dark:text-slate-200"
               >
                 CSV…（詳細設定）
               </button>
-              <div className="border-t border-slate-100 my-1" />
+              <div className="border-t border-slate-100 dark:border-slate-700 my-1" />
               <button
                 type="button"
                 role="menuitem"
                 onClick={handleExportExcel}
-                className="w-full text-left px-3 py-1.5 text-xs hover:bg-green-50 text-green-700"
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-green-50 dark:hover:bg-green-900/30 text-green-700 dark:text-green-300"
               >
                 Excel (.xlsx)
               </button>
@@ -398,7 +401,7 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
       {queryLoading && (
         <div
           aria-live="polite"
-          className="flex items-center gap-2 px-3 py-1 bg-blue-50 border-b border-blue-200 text-xs text-blue-700 flex-shrink-0"
+          className="flex items-center gap-2 px-3 py-1 bg-blue-50 dark:bg-blue-900/30 border-b border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300 flex-shrink-0"
         >
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
@@ -414,23 +417,23 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
           <SkeletonTable colCount={Math.min(Math.max(cols.length, 5), 8)} />
         ) : (
         <table className="text-xs border-collapse" style={{ width: table.getTotalSize() }}>
-          <thead className="sticky top-0 bg-slate-100 z-10">
+          <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 z-10">
             {table.getHeaderGroups().map(hg => (
               <tr key={hg.id}>
                 {hg.headers.map(header => (
                   <th
                     key={header.id}
                     style={{ width: header.getSize() }}
-                    className="relative px-2 py-1.5 text-left font-semibold text-slate-600 border-b border-r border-slate-200 whitespace-nowrap select-none"
+                    className="relative px-2 py-1.5 text-left font-semibold text-slate-600 dark:text-slate-200 border-b border-r border-slate-200 dark:border-slate-700 whitespace-nowrap select-none"
                   >
                     <div
                       onClick={header.column.getToggleSortingHandler()}
-                      className="flex items-center gap-1 cursor-pointer hover:text-blue-600 pr-2"
+                      className="flex items-center gap-1 cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 pr-2"
                     >
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getIsSorted() === 'asc' ? <ArrowUp size={10} /> :
                        header.column.getIsSorted() === 'desc' ? <ArrowDown size={10} /> :
-                       <ArrowUpDown size={10} className="text-slate-300" />}
+                       <ArrowUpDown size={10} className="text-slate-300 dark:text-slate-600" />}
                     </div>
                     {/* 列幅ドラッグハンドル: 右端の 4px 透明領域 */}
                     {header.column.getCanResize() && (
@@ -461,13 +464,13 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
               return (
                 <tr
                   key={row.id}
-                  className={vRow.index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}
+                  className={vRow.index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/50'}
                 >
                   {row.getVisibleCells().map(cell => (
                     <td
                       key={cell.id}
                       style={{ width: cell.column.getSize() }}
-                      className="px-2 py-1 border-b border-r border-slate-100 truncate"
+                      className="px-2 py-1 border-b border-r border-slate-100 dark:border-slate-800 dark:text-slate-200 truncate"
                       title={String(cell.getValue() ?? '')}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -495,10 +498,10 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
             aria-modal="true"
             aria-labelledby="csv-export-title"
             onClick={e => e.stopPropagation()}
-            className="bg-white rounded-lg shadow-xl p-6 w-80"
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-xl p-6 w-80"
           >
-            <h3 id="csv-export-title" className="text-sm font-semibold text-slate-800 mb-4">CSV エクスポート設定</h3>
-            <label className="flex items-center gap-2 text-sm text-slate-700 mb-3 cursor-pointer">
+            <h3 id="csv-export-title" className="text-sm font-semibold text-slate-800 dark:text-slate-100 mb-4">CSV エクスポート設定</h3>
+            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 mb-3 cursor-pointer">
               <input
                 type="checkbox"
                 checked={exportDialog.bom}
@@ -508,9 +511,9 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
               BOM を付与する（Excel で開く場合に推奨）
             </label>
             <div className="mb-4">
-              <p className="text-sm text-slate-700 mb-1">改行コード</p>
+              <p className="text-sm text-slate-700 dark:text-slate-200 mb-1">改行コード</p>
               {(['CRLF', 'LF'] as const).map(le => (
-                <label key={le} className="flex items-center gap-2 text-sm text-slate-600 mb-1 cursor-pointer">
+                <label key={le} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 mb-1 cursor-pointer">
                   <input
                     type="radio"
                     name="lineEnding"
@@ -527,7 +530,7 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
               <button
                 type="button"
                 onClick={() => setExportDialog(d => ({ ...d, open: false }))}
-                className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded"
+                className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
               >
                 キャンセル
               </button>

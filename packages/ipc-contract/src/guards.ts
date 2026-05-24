@@ -55,11 +55,15 @@ export const assertLogLevel: (v: unknown) => asserts v is LogLevel = (v) => {
 const isPaneSizes = (v: unknown): v is AppSettings['paneSizes'] =>
   isPlainObject(v) && isNumber(v['leftPanel']) && isNumber(v['soqlPanel']);
 
+const isThemeMode = (v: unknown): v is AppSettings['theme'] =>
+  v === 'light' || v === 'dark' || v === 'system';
+
 const isAppSettings = (v: unknown): v is AppSettings =>
   isPlainObject(v)
   && isNumber(v['defaultMaxRows'])
   && isNumber(v['logBufferSize'])
-  && isPaneSizes(v['paneSizes']);
+  && isPaneSizes(v['paneSizes'])
+  && isThemeMode(v['theme']);
 
 /**
  * `unknown` が [[AppSettings]] であることを assert する。

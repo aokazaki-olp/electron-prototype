@@ -47,10 +47,10 @@ export const showToast = (level: ToastLevel, message: string): void => {
 };
 
 const LEVEL_STYLE: Record<ToastLevel, { container: string; icon: JSX.Element }> = {
-  error:   { container: 'bg-red-50 border-red-300 text-red-800',         icon: <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-red-600" /> },
-  warn:    { container: 'bg-yellow-50 border-yellow-300 text-yellow-800', icon: <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-yellow-600" /> },
-  info:    { container: 'bg-blue-50 border-blue-300 text-blue-800',       icon: <Info size={16} className="flex-shrink-0 mt-0.5 text-blue-600" /> },
-  success: { container: 'bg-green-50 border-green-300 text-green-800',    icon: <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5 text-green-600" /> },
+  error:   { container: 'bg-red-50 border-red-300 text-red-800 dark:bg-red-950/80 dark:border-red-700 dark:text-red-100',                 icon: <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-red-600 dark:text-red-400" /> },
+  warn:    { container: 'bg-yellow-50 border-yellow-300 text-yellow-800 dark:bg-yellow-950/80 dark:border-yellow-700 dark:text-yellow-100', icon: <AlertTriangle size={16} className="flex-shrink-0 mt-0.5 text-yellow-600 dark:text-yellow-400" /> },
+  info:    { container: 'bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-950/80 dark:border-blue-700 dark:text-blue-100',             icon: <Info size={16} className="flex-shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" /> },
+  success: { container: 'bg-green-50 border-green-300 text-green-800 dark:bg-green-950/80 dark:border-green-700 dark:text-green-100',       icon: <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5 text-green-600 dark:text-green-400" /> },
 };
 
 interface ToastItemProps {

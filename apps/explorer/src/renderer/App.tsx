@@ -4,6 +4,7 @@ import { SettingsPage } from './pages/SettingsPage.js';
 import { MainPage } from './pages/MainPage.js';
 import { ToastContainer } from './components/Toast.js';
 import { useGlobalKeybindings } from './hooks/useGlobalKeybindings.js';
+import { useTheme } from './hooks/useTheme.js';
 import { useAppStore, persistTabs } from './store.js';
 import type { SoqlTab } from './store.js';
 import type { LogEntry } from '@app/ipc-contract';
@@ -31,6 +32,8 @@ const App = (): JSX.Element => {
 
   // B7: グローバルショートカット (Ctrl+T / Ctrl+W / Ctrl+Tab)
   useGlobalKeybindings();
+  // B8: settings.theme → documentElement.classList.dark
+  useTheme();
 
   // ログストリーミング購読（マウント時のみ）
   useEffect(() => {
@@ -112,8 +115,8 @@ const App = (): JSX.Element => {
   if (authState === 'checking') {
     return (
       <>
-        <div className="min-h-screen flex items-center justify-center bg-slate-50">
-          <p className="text-slate-500 text-sm">起動中...</p>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900">
+          <p className="text-slate-500 dark:text-slate-400 text-sm">起動中...</p>
         </div>
         <ToastContainer />
       </>
@@ -142,7 +145,7 @@ const App = (): JSX.Element => {
               aria-label="設定"
               tabIndex={-1}
               onClick={e => e.stopPropagation()}
-              className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto outline-none"
+              className="bg-white dark:bg-slate-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto outline-none"
             >
               <SettingsPage
                 onConnect={(profileId) => {

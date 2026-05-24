@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     leftPanel: 18,
     soqlPanel: 40,
   },
+  theme: 'system',
 };
 
 const store = new Store<StoreSchema>({
