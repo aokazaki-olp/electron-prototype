@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Settings, LogOut, AlertCircle } from 'lucide-react';
+import { Settings, LogOut } from 'lucide-react';
 import { SObjectBrowser } from '../components/SObjectBrowser.js';
 import { SoqlEditor } from '../components/SoqlEditor.js';
 import { ResultTable } from '../components/ResultTable.js';
 import { LogViewer } from '../components/LogViewer.js';
+import { showToast } from '../components/Toast.js';
 import { useAppStore } from '../store.js';
 
 type BottomTab = 'result' | 'log';
@@ -59,7 +60,6 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
     }))
   );
   const [bottomTab, setBottomTab] = useState<BottomTab>('result');
-  const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const activeTab = tabs.find(t => t.id === activeTabId);
   const result = activeTab?.result ?? null;
 
@@ -71,13 +71,12 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
 
   const handleDisconnect = async () => {
     if (!activeProfileId) return;
-    setDisconnectError(null);
     try {
       await window.sfx.disconnect(activeProfileId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       window.sfx.rendererLog('error', `disconnect 失敗: ${msg}`);
-      setDisconnectError(`切断に失敗しました: ${msg}`);
+      showToast('error', `切断に失敗しました: ${msg}`);
     } finally {
       // 例外が出てもローカル状態は切断扱いにする
       onDisconnect();
@@ -146,13 +145,6 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
           </button>
         </div>
       </header>
-
-      {disconnectError && (
-        <div role="alert" className="flex items-start gap-2 px-3 py-2 bg-red-50 border-b border-red-200 text-xs text-red-700">
-          <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
-          <span>{disconnectError}</span>
-        </div>
-      )}
 
       {/* メインコンテンツ */}
       <div className="flex flex-1 overflow-hidden">

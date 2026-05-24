@@ -9,7 +9,9 @@ import {
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Download, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle } from 'lucide-react';
+import { Download, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { showToast } from './Toast.js';
+import { useAppStore } from '../store.js';
 import type { QueryResult, CsvExportOptions } from '@app/ipc-contract';
 
 interface Props {
@@ -51,17 +53,73 @@ interface ExportDialogState {
   lineEnding: 'CRLF' | 'LF';
 }
 
+/**
+ * 読み込み中に既存テーブルを覆う skeleton。
+ * Bulk 実行など数十秒の待ち時間に「動いている」ことを示すため、行・セル幅をランダム風に変えて表現する。
+ */
+const SkeletonTable = ({ colCount }: { colCount: number }): JSX.Element => {
+  const rowCount = 6;
+  return (
+    <table
+      className="text-xs border-collapse w-full"
+      aria-label="読み込み中"
+      data-testid="result-skeleton"
+    >
+      <thead className="sticky top-0 bg-slate-100 z-10">
+        <tr>
+          {Array.from({ length: colCount }).map((_, i) => (
+            <th
+              key={i}
+              className="px-2 py-1.5 text-left border-b border-r border-slate-200"
+            >
+              <div className="h-3 w-20 bg-slate-300/70 rounded animate-pulse" />
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rowCount }).map((_, r) => (
+          <tr key={r} className={r % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+            {Array.from({ length: colCount }).map((_, c) => (
+              <td key={c} className="px-2 py-1.5 border-b border-r border-slate-100">
+                <div
+                  className="h-2.5 bg-slate-200 rounded animate-pulse"
+                  style={{ width: `${50 + ((r + c) * 13) % 40}%` }}
+                />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+};
+
 export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilterInput, setGlobalFilterInput] = useState('');
   const [globalFilter, setGlobalFilter] = useState('');
-  const [exportError, setExportError] = useState<string | null>(null);
+  const queryLoading = useAppStore(s => s.queryLoading);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [exportDialog, setExportDialog] = useState<ExportDialogState>({
     open: false,
     bom: true,
     lineEnding: 'CRLF',
   });
+  const [elapsedSec, setElapsedSec] = useState(0);
+
+  // 実行中の経過秒数。Bulk は数十秒〜数分かかるので「動いている」感を出す。
+  useEffect(() => {
+    if (!queryLoading) {
+      setElapsedSec(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [queryLoading]);
 
   // 200ms debounce: 大規模クエリ結果でキーストロークごとに全行走査するのを防ぐ
   useEffect(() => {
@@ -118,26 +176,24 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
       bom: exportDialog.bom,
       lineEnding: exportDialog.lineEnding,
     };
-    setExportError(null);
     try {
       await window.sfx.exportCsv(result.records, cols, options);
       setExportDialog(d => ({ ...d, open: false }));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       window.sfx.rendererLog('error', `CSV エクスポート失敗: ${msg}`);
-      setExportError(`CSV 保存に失敗しました: ${msg}`);
+      showToast('error', `CSV 保存に失敗しました: ${msg}`);
     }
   };
 
   const handleExportExcel = async () => {
     if (!result) return;
-    setExportError(null);
     try {
       await window.sfx.exportQueryExcel(result.records, cols);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       window.sfx.rendererLog('error', `Excel エクスポート失敗: ${msg}`);
-      setExportError(`Excel 保存に失敗しました: ${msg}`);
+      showToast('error', `Excel 保存に失敗しました: ${msg}`);
     }
   };
 
@@ -151,7 +207,8 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
     return () => document.removeEventListener('keydown', onKey);
   }, [exportDialog.open]);
 
-  if (!result) {
+  // 結果がまだ無く実行中でもない: 空状態 (スニペット) を表示
+  if (!result && !queryLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-3 px-6 py-8">
         <p>SOQLを実行すると結果が表示されます</p>
@@ -181,9 +238,15 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
       {/* ツールバー */}
       <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border-b border-slate-200 flex-shrink-0">
         <span className="text-xs text-slate-600">
-          {result.fetchedCount.toLocaleString()}件取得
-          {result.totalSize > result.fetchedCount && (
-            <span className="text-yellow-600">（全体: {result.totalSize.toLocaleString()}件）</span>
+          {result ? (
+            <>
+              {result.fetchedCount.toLocaleString()}件取得
+              {result.totalSize > result.fetchedCount && (
+                <span className="text-yellow-600">（全体: {result.totalSize.toLocaleString()}件）</span>
+              )}
+            </>
+          ) : (
+            <span className="text-slate-400">実行中...</span>
           )}
         </span>
         <input
@@ -192,12 +255,14 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
           onChange={e => setGlobalFilterInput(e.target.value)}
           placeholder="フィルタ..."
           aria-label="結果テーブルをフィルタ"
-          className="ml-auto w-48 px-2 py-0.5 text-xs border border-slate-300 rounded outline-none focus:border-blue-500"
+          disabled={!result || queryLoading}
+          className="ml-auto w-48 px-2 py-0.5 text-xs border border-slate-300 rounded outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
         />
         <button
           type="button"
           onClick={() => setExportDialog(d => ({ ...d, open: true }))}
-          className="flex items-center gap-1 px-2 py-0.5 text-xs bg-slate-200 hover:bg-slate-300 rounded"
+          disabled={!result || queryLoading}
+          className="flex items-center gap-1 px-2 py-0.5 text-xs bg-slate-200 hover:bg-slate-300 rounded disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Download size={12} />
           CSV
@@ -205,23 +270,33 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
         <button
           type="button"
           onClick={handleExportExcel}
-          className="flex items-center gap-1 px-2 py-0.5 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded"
+          disabled={!result || queryLoading}
+          className="flex items-center gap-1 px-2 py-0.5 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <FileSpreadsheet size={12} />
           Excel
         </button>
       </div>
 
-      {/* エラー表示 */}
-      {exportError && (
-        <div role="alert" className="flex items-start gap-2 px-3 py-2 bg-red-50 border-b border-red-200 text-xs text-red-700">
-          <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
-          <span>{exportError}</span>
+      {/* 実行中: 経過秒数バー */}
+      {queryLoading && (
+        <div
+          aria-live="polite"
+          className="flex items-center gap-2 px-3 py-1 bg-blue-50 border-b border-blue-200 text-xs text-blue-700 flex-shrink-0"
+        >
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
+          </span>
+          <span>実行中... {elapsedSec}秒経過</span>
         </div>
       )}
 
-      {/* テーブル */}
+      {/* テーブル (実行中は skeleton で覆う) */}
       <div className="flex-1 overflow-auto" ref={scrollRef}>
+        {queryLoading ? (
+          <SkeletonTable colCount={Math.min(Math.max(cols.length, 5), 8)} />
+        ) : (
         <table className="text-xs border-collapse w-full">
           <thead className="sticky top-0 bg-slate-100 z-10">
             {table.getHeaderGroups().map(hg => (
@@ -271,6 +346,7 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
             )}
           </tbody>
         </table>
+        )}
       </div>
 
       {/* CSVエクスポートダイアログ */}

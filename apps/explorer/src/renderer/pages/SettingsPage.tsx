@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Plus, Trash2, Edit2, Check, X, Wifi, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Wifi } from 'lucide-react';
 import { useAppStore } from '../store.js';
+import { showToast } from '../components/Toast.js';
 import type { SfConnectionProfile, AppSettings } from '@app/ipc-contract';
 
 const DEFAULT_PROFILE: Omit<SfConnectionProfile, 'id'> = {
@@ -36,9 +37,7 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
   const [editing, setEditing] = useState<SfConnectionProfile | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [connecting, setConnecting] = useState<string | null>(null);
-  const [authErrors, setAuthErrors] = useState<Record<string, string>>({});
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
   const pendingSave = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
@@ -51,7 +50,7 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
         setProfiles(loadedProfiles);
         setSettings(loadedSettings);
       } catch (e) {
-        setSaveError(`設定の読み込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+        showToast('error', `設定の読み込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
       }
     })();
     // 初回マウントのみで読み込む（setProfiles / setSettings は安定参照だが exhaustive-deps 警告対策）
@@ -82,7 +81,7 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
       setEditing(null);
       setIsNew(false);
     } catch (e) {
-      setSaveError(`プロファイル保存に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+      showToast('error', `プロファイル保存に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -92,7 +91,7 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
       const updated = await window.sfx.loadProfiles();
       setProfiles(updated);
     } catch (e) {
-      setSaveError(`プロファイル削除に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+      showToast('error', `プロファイル削除に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setDeleteConfirm(null);
     }
@@ -100,7 +99,6 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
 
   const handleConnect = async (profile: SfConnectionProfile) => {
     setConnecting(profile.id);
-    setAuthErrors(e => ({ ...e, [profile.id]: '' }));
     try {
       await window.sfx.startOAuth(profile.id);
       // store 更新は呼び出し側（App.tsx onConnect）に一元化する。
@@ -108,7 +106,7 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
       onConnect(profile.id);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setAuthErrors(er => ({ ...er, [profile.id]: msg }));
+      showToast('error', `${profile.name}: ${msg}`);
     } finally {
       setConnecting(null);
     }
@@ -126,7 +124,7 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
       try {
         await window.sfx.saveSettings(updated);
       } catch (e) {
-        setSaveError(`設定保存に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+        showToast('error', `設定保存に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
         // ロールバックは行わない（楽観更新の方針を維持し、後続の save で正規化される）
       }
     })();
@@ -145,13 +143,6 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
             </button>
           )}
         </div>
-
-        {saveError && (
-          <div role="alert" className="mb-4 flex items-start gap-2 px-3 py-2 bg-red-50 border border-red-200 text-sm text-red-700 rounded">
-            <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
-            <span>{saveError}</span>
-          </div>
-        )}
 
         {/* 接続プロファイル */}
         <section className="bg-white rounded-lg border border-slate-200 mb-6">
@@ -284,9 +275,6 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
                     <Trash2 size={14} />
                   </button>
                 </div>
-                {authErrors[p.id] && (
-                  <div role="alert" className="mt-1 text-xs text-red-600">{authErrors[p.id]}</div>
-                )}
               </div>
             ))
           )}

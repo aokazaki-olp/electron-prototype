@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup, act, waitFor } from '@testing-library/react';
 import { SObjectBrowser } from '../../../apps/explorer/src/renderer/components/SObjectBrowser.js';
+import { ToastContainer } from '../../../apps/explorer/src/renderer/components/Toast.js';
 import { useAppStore } from '../../../apps/explorer/src/renderer/store.js';
 import { makeSObjectSummary, makeSObjectDescribe } from '../../fixtures/contract.js';
 
@@ -26,6 +27,14 @@ beforeEach(() => {
   cleanup();
 });
 
+// toast 表示は store ベースで Provider 不要。表示確認用に ToastContainer をペアで mount する。
+const renderBrowser = () => render(
+  <>
+    <SObjectBrowser />
+    <ToastContainer />
+  </>,
+);
+
 describe('SObjectBrowser — 初期表示と読み込み', () => {
   it('マウント時に listSObjects を呼ぶ (sobjects が空のとき)', async () => {
     (window.sfx.listSObjects as ReturnType<typeof vi.fn>).mockResolvedValue([
@@ -33,7 +42,7 @@ describe('SObjectBrowser — 初期表示と読み込み', () => {
     ]);
 
     await act(async () => {
-      render(<SObjectBrowser />);
+      renderBrowser();
     });
 
     await waitFor(() => {
@@ -45,7 +54,7 @@ describe('SObjectBrowser — 初期表示と読み込み', () => {
     (window.sfx.listSObjects as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('API down'));
 
     await act(async () => {
-      render(<SObjectBrowser />);
+      renderBrowser();
     });
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('API down');
@@ -67,7 +76,7 @@ describe('SObjectBrowser — 検索フィルタ', () => {
   it('label の部分一致でフィルタ', async () => {
     (window.sfx.listSObjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     await act(async () => {
-      render(<SObjectBrowser />);
+      renderBrowser();
     });
     fireEvent.change(screen.getByLabelText('オブジェクト検索'), { target: { value: '取引' } });
     expect(screen.getByText('取引先責任者')).toBeInTheDocument();
@@ -77,7 +86,7 @@ describe('SObjectBrowser — 検索フィルタ', () => {
   it('name (API 名) の部分一致でも引っかかる', async () => {
     (window.sfx.listSObjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     await act(async () => {
-      render(<SObjectBrowser />);
+      renderBrowser();
     });
     fireEvent.change(screen.getByLabelText('オブジェクト検索'), { target: { value: 'opp' } });
     expect(screen.getByText('商談')).toBeInTheDocument();
@@ -87,7 +96,7 @@ describe('SObjectBrowser — 検索フィルタ', () => {
   it('検索クリアで全件再表示', async () => {
     (window.sfx.listSObjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     await act(async () => {
-      render(<SObjectBrowser />);
+      renderBrowser();
     });
     const input = screen.getByLabelText('オブジェクト検索');
     fireEvent.change(input, { target: { value: 'opp' } });
@@ -111,7 +120,7 @@ describe('SObjectBrowser — 定義書出力エラー', () => {
     (window.sfx.exportObjectDefinition as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('disk full'));
 
     await act(async () => {
-      render(<SObjectBrowser />);
+      renderBrowser();
     });
 
     await waitFor(() => {

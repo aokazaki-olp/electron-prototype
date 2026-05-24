@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup, act, waitFor } from '@testing-library/react';
 import { SettingsPage } from '../../../apps/explorer/src/renderer/pages/SettingsPage.js';
+import { ToastContainer } from '../../../apps/explorer/src/renderer/components/Toast.js';
 import { useAppStore } from '../../../apps/explorer/src/renderer/store.js';
 import { makeProfile } from '../../fixtures/contract.js';
 
@@ -137,7 +138,12 @@ describe('SettingsPage — 接続フロー', () => {
     const onConnect = vi.fn();
 
     await act(async () => {
-      render(<SettingsPage onConnect={onConnect} />);
+      render(
+        <>
+          <SettingsPage onConnect={onConnect} />
+          <ToastContainer />
+        </>,
+      );
     });
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /接続/ }));

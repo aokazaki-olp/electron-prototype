@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { MainPage } from './pages/MainPage.js';
+import { ToastContainer } from './components/Toast.js';
 import { useAppStore, persistTabs } from './store.js';
 import type { SoqlTab } from './store.js';
 import type { LogEntry } from '@app/ipc-contract';
@@ -99,9 +100,12 @@ const App = (): JSX.Element => {
 
   if (authState === 'checking') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-slate-500 text-sm">起動中...</p>
-      </div>
+      <>
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <p className="text-slate-500 text-sm">起動中...</p>
+        </div>
+        <ToastContainer />
+      </>
     );
   }
 
@@ -140,17 +144,21 @@ const App = (): JSX.Element => {
             </div>
           </div>
         )}
+        <ToastContainer />
       </>
     );
   }
 
   return (
-    <SettingsPage
-      onConnect={(profileId) => {
-        setActiveProfileId(profileId);
-        setAuthState('connected');
-      }}
-    />
+    <>
+      <SettingsPage
+        onConnect={(profileId) => {
+          setActiveProfileId(profileId);
+          setAuthState('connected');
+        }}
+      />
+      <ToastContainer />
+    </>
   );
 };
 

@@ -7,13 +7,28 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 import { ResultTable } from '../../../apps/explorer/src/renderer/components/ResultTable.js';
+import { ToastContainer } from '../../../apps/explorer/src/renderer/components/Toast.js';
+import { useAppStore } from '../../../apps/explorer/src/renderer/store.js';
 import { makeQueryResult } from '../../fixtures/contract.js';
+import type { QueryResult } from '@app/ipc-contract';
 
-beforeEach(cleanup);
+// ResultTable は store の queryLoading を購読するようになったので、各テストで明示的に false に戻す
+beforeEach(() => {
+  cleanup();
+  useAppStore.setState({ queryLoading: false });
+});
+
+// toast 表示確認には ToastContainer をペアで mount する必要がある（store ベースなので Provider 不要）
+const renderTable = (result: QueryResult | null) => render(
+  <>
+    <ResultTable result={result} />
+    <ToastContainer />
+  </>,
+);
 
 describe('ResultTable — レンダリング', () => {
   it('result=null の場合はプレースホルダ表示', () => {
-    render(<ResultTable result={null} />);
+    renderTable(null);
     expect(screen.getByText(/SOQLを実行すると結果が表示されます/)).toBeInTheDocument();
   });
 
@@ -25,7 +40,7 @@ describe('ResultTable — レンダリング', () => {
         { Id: '002', Name: 'Globex' },
       ],
     });
-    render(<ResultTable result={result} />);
+    renderTable(result);
 
     expect(screen.getByText(/2件取得/)).toBeInTheDocument();
     expect(screen.getByText('Id')).toBeInTheDocument();
@@ -39,7 +54,7 @@ describe('ResultTable — レンダリング', () => {
       totalSize: 100, fetchedCount: 50,
       records: Array.from({ length: 50 }, (_, i) => ({ Id: `r${i}` })),
     });
-    render(<ResultTable result={result} />);
+    renderTable(result);
     expect(screen.getByText(/全体: 100件/)).toBeInTheDocument();
   });
 
@@ -48,7 +63,7 @@ describe('ResultTable — レンダリング', () => {
       totalSize: 1, fetchedCount: 1,
       records: [{ Id: '001', Name: null }],
     });
-    render(<ResultTable result={result} />);
+    renderTable(result);
     expect(screen.getByText('null')).toBeInTheDocument();
   });
 
@@ -57,7 +72,7 @@ describe('ResultTable — レンダリング', () => {
       totalSize: 1, fetchedCount: 1,
       records: [{ Id: '001', Meta: { x: 1 } }],
     });
-    render(<ResultTable result={result} />);
+    renderTable(result);
     expect(screen.getByText('[object]')).toBeInTheDocument();
   });
 });
@@ -65,7 +80,7 @@ describe('ResultTable — レンダリング', () => {
 describe('ResultTable — CSV エクスポートダイアログ', () => {
   it('CSV ボタンでモーダルが開く', () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
-    render(<ResultTable result={result} />);
+    renderTable(result);
 
     fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
     expect(screen.getByRole('dialog', { name: 'CSV エクスポート設定' })).toBeInTheDocument();
@@ -74,7 +89,7 @@ describe('ResultTable — CSV エクスポートダイアログ', () => {
 
   it('Esc キーでモーダルを閉じる (a11y)', () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
-    render(<ResultTable result={result} />);
+    renderTable(result);
 
     fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -85,7 +100,7 @@ describe('ResultTable — CSV エクスポートダイアログ', () => {
 
   it('キャンセルボタンでモーダルを閉じる', () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
-    render(<ResultTable result={result} />);
+    renderTable(result);
 
     fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
     fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }));
@@ -94,7 +109,7 @@ describe('ResultTable — CSV エクスポートダイアログ', () => {
 
   it('改行コードを LF に切り替えできる', () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
-    render(<ResultTable result={result} />);
+    renderTable(result);
 
     fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
     const lfRadio = screen.getByRole('radio', { name: 'LF' });
@@ -107,7 +122,7 @@ describe('ResultTable — エラーハンドリング', () => {
   it('exportCsv の失敗で role=alert が出る', async () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
     (window.sfx.exportCsv as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('write failed'));
-    render(<ResultTable result={result} />);
+    renderTable(result);
 
     fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
     await act(async () => {
@@ -119,12 +134,35 @@ describe('ResultTable — エラーハンドリング', () => {
   it('Excel エクスポートの失敗で role=alert が出る', async () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
     (window.sfx.exportQueryExcel as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('xlsx failed'));
-    render(<ResultTable result={result} />);
+    renderTable(result);
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: /Excel/ }));
     });
     expect(screen.getByRole('alert')).toHaveTextContent(/xlsx failed/);
+  });
+});
+
+describe('ResultTable — 実行中 (queryLoading)', () => {
+  it('queryLoading=true かつ result=null で skeleton + 経過秒数バーを表示', () => {
+    useAppStore.setState({ queryLoading: true });
+    renderTable(null);
+    expect(screen.getByTestId('result-skeleton')).toBeInTheDocument();
+    // 経過秒数バー（toolbar の「実行中...」とは別）。起動直後は 0 秒。
+    expect(screen.getByText(/実行中\.\.\. 0秒経過/)).toBeInTheDocument();
+    // 空状態スニペットは表示しない
+    expect(screen.queryByText(/SOQLを実行すると結果が表示されます/)).not.toBeInTheDocument();
+  });
+
+  it('queryLoading=true かつ既存 result あり で既存テーブルを skeleton で覆う', () => {
+    useAppStore.setState({ queryLoading: true });
+    const result = makeQueryResult({
+      totalSize: 1, fetchedCount: 1, records: [{ Id: '001', Name: 'Old' }],
+    });
+    renderTable(result);
+    // 旧テーブルの値は隠れている
+    expect(screen.queryByText('Old')).not.toBeInTheDocument();
+    expect(screen.getByTestId('result-skeleton')).toBeInTheDocument();
   });
 });
 
@@ -135,7 +173,7 @@ describe('ResultTable — フィルタ debounce', () => {
       totalSize: 2, fetchedCount: 2,
       records: [{ Id: '001', Name: 'Acme' }, { Id: '002', Name: 'Globex' }],
     });
-    render(<ResultTable result={result} />);
+    renderTable(result);
 
     fireEvent.change(screen.getByLabelText('結果テーブルをフィルタ'), {
       target: { value: 'Acme' },

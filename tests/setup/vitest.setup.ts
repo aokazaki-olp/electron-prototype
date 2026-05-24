@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom';
 import { afterEach, vi } from 'vitest';
 import { makeMockSfx } from '../mocks/sfx.js';
+import { useToastStore } from '../../apps/explorer/src/renderer/components/Toast.js';
 
 // @tanstack/react-virtual は happy-dom で viewport=0 になり 0 件描画になる。
 // テスト時は仮想化を無効化して全件描画する mock に差し替える。
@@ -56,4 +57,6 @@ afterEach(() => {
   if (typeof window !== 'undefined') {
     (window as unknown as { sfx?: unknown }).sfx = makeMockSfx();
   }
+  // 共有 toast store はテスト間で漏れるため明示的にクリアする
+  useToastStore.setState({ toasts: [] });
 });

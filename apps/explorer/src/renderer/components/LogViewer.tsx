@@ -1,8 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Download, AlertCircle } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { useAppStore } from '../store.js';
+import { showToast } from './Toast.js';
 import type { LogLevel } from '@app/ipc-contract';
 
 const LEVEL_COLOR: Record<LogLevel, string> = {
@@ -30,7 +31,6 @@ const LogViewerInner = (): JSX.Element => {
   });
   const [search, setSearch] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
-  const [exportError, setExportError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const toggleLevel = (level: LogLevel) => {
@@ -38,12 +38,11 @@ const LogViewerInner = (): JSX.Element => {
   };
 
   const handleExport = async () => {
-    setExportError(null);
     try {
       await window.sfx.exportLogFile(logs);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setExportError(`ログ保存に失敗しました: ${msg}`);
+      showToast('error', `ログ保存に失敗しました: ${msg}`);
     }
   };
 
@@ -126,14 +125,6 @@ const LogViewerInner = (): JSX.Element => {
           クリア
         </button>
       </div>
-
-      {/* エクスポートエラー */}
-      {exportError && (
-        <div role="alert" className="flex items-start gap-1.5 px-2 py-1 text-xs text-red-300 bg-red-900/40 border-b border-red-800">
-          <AlertCircle size={11} className="flex-shrink-0 mt-0.5" />
-          <span>{exportError}</span>
-        </div>
-      )}
 
       {/* ログ一覧（仮想化） */}
       <div className="flex-1 overflow-y-auto" ref={scrollRef}>

@@ -1,8 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Search, Table2, RefreshCw, AlertCircle } from 'lucide-react';
+import { Search, Table2, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../store.js';
+import { showToast } from './Toast.js';
 import type { SObjectDescribe } from '@app/ipc-contract';
 
 const SObjectBrowserInner = (): JSX.Element => {
@@ -21,8 +22,6 @@ const SObjectBrowserInner = (): JSX.Element => {
     }))
   );
   const [search, setSearch] = useState('');
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [exportError, setExportError] = useState<string | null>(null);
   const [describe, setDescribe] = useState<SObjectDescribe | null>(null);
   const [describeLoading, setDescribeLoading] = useState(false);
   const pendingRun = useRef(false);
@@ -30,12 +29,11 @@ const SObjectBrowserInner = (): JSX.Element => {
 
   const loadSObjects = useCallback(async () => {
     setSobjectsLoading(true);
-    setLoadError(null);
     try {
       const list = await window.sfx.listSObjects();
       setSobjects(list.sort((a, b) => a.label.localeCompare(b.label)));
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : String(e));
+      showToast('error', `オブジェクト一覧の読み込みに失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setSobjectsLoading(false);
     }
@@ -119,13 +117,12 @@ const SObjectBrowserInner = (): JSX.Element => {
 
   const handleExportDefinition = async () => {
     if (!selectedObject) return;
-    setExportError(null);
     try {
       await window.sfx.exportObjectDefinition(selectedObject);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       window.sfx.rendererLog('error', `定義書出力失敗: ${msg}`);
-      setExportError(`定義書出力に失敗しました: ${msg}`);
+      showToast('error', `定義書出力に失敗しました: ${msg}`);
     }
   };
 
@@ -157,14 +154,6 @@ const SObjectBrowserInner = (): JSX.Element => {
           </button>
         </div>
       </div>
-
-      {/* エラー表示 */}
-      {loadError && (
-        <div role="alert" className="flex items-start gap-1.5 px-3 py-2 text-xs text-red-600 bg-red-50 border-b border-red-200">
-          <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
-          <span>{loadError}</span>
-        </div>
-      )}
 
       {/* オブジェクト一覧（仮想スクロール） */}
       <div className="flex-1 overflow-y-auto" ref={listScrollRef}>
@@ -207,12 +196,6 @@ const SObjectBrowserInner = (): JSX.Element => {
               定義書出力
             </button>
           </div>
-          {exportError && (
-            <div role="alert" className="flex items-start gap-1.5 px-3 py-2 text-xs text-red-600 bg-red-50 border-b border-red-200">
-              <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
-              <span>{exportError}</span>
-            </div>
-          )}
           <div className="flex-1 overflow-y-auto text-xs">
             {describeLoading ? (
               <div className="p-3 text-slate-500">読み込み中...</div>
