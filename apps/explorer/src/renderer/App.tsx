@@ -12,7 +12,7 @@ import type { LogEntry } from '@app/ipc-contract';
 const App = (): JSX.Element => {
   const {
     authState, activeProfileId, setAuthState, setActiveProfileId, appendLog,
-    tabs, activeTabId, loadTabs, setSettings,
+    tabs, activeTabId, loadTabs, setSettings, setProfiles,
   } = useAppStore(
     useShallow(s => ({
       authState: s.authState,
@@ -24,6 +24,7 @@ const App = (): JSX.Element => {
       activeTabId: s.activeTabId,
       loadTabs: s.loadTabs,
       setSettings: s.setSettings,
+      setProfiles: s.setProfiles,
     }))
   );
   const [showSettings, setShowSettings] = useState(false);
@@ -54,6 +55,9 @@ const App = (): JSX.Element => {
           window.sfx.loadTabs(),
           window.sfx.loadSettings(),
         ]);
+        // 起動時に store へ反映する。これを忘れると MainPage が activeProfile を引けず
+        // ヘッダーの org 名・環境バッジ・モードバッジが表示されない事故になる。
+        setProfiles(profiles);
         setSettings(loadedSettings);
         if (tabsState && tabsState.tabs.length > 0) {
           const restored: SoqlTab[] = tabsState.tabs.map(t => ({

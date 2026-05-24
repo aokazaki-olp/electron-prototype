@@ -89,6 +89,8 @@ type TestMockStore = {
   queryResult: import('@app/ipc-contract').QueryResult | null;
   // E2E から「クエリは必ず失敗する」モードを有効化
   queryError: string | null;
+  // E2E で「実行中」状態を観察したいテストのため、応答前に故意に遅延を入れる ms
+  queryDelayMs: number;
 };
 
 const testMock: TestMockStore = {
@@ -100,6 +102,7 @@ const testMock: TestMockStore = {
   tabs: null,
   queryResult: null,
   queryError: null,
+  queryDelayMs: 0,
 };
 
 // ============================================================================
@@ -291,13 +294,24 @@ const registerIpcHandlers = (): void => {
       if (queryError === null || typeof queryError === 'string') {
         testMock.queryError = queryError;
       }
+      const queryDelayMs = d['queryDelayMs'];
+      if (typeof queryDelayMs === 'number' && Number.isFinite(queryDelayMs) && queryDelayMs >= 0) {
+        testMock.queryDelayMs = queryDelayMs;
+      }
     });
   }
 
   // 設定
   // テストモード（!useRealApi）では実 electron-store を汚染しないよう、
   // 全ての書き込み系も testMock 内に閉じ込める。
-  let mockSettings = { defaultMaxRows: 2000 };
+  // assertAppSettings の必須フィールドを全て含めておかないと、テストで楽観更新後の
+  // saveSettings IPC で guard fail し「IPC payload が AppSettings ではありません」になる。
+  let mockSettings: import('@app/ipc-contract').AppSettings = {
+    defaultMaxRows: 2000,
+    logBufferSize: 1000,
+    paneSizes: { leftPanel: 18, soqlPanel: 40 },
+    theme: 'system',
+  };
 
   handle(IPC.LOAD_SETTINGS, async () => {
     if (isTestMode && !testMock.useRealApi) return mockSettings;
@@ -401,6 +415,9 @@ const registerIpcHandlers = (): void => {
     assertString(soql);
     assertNumber(maxRows);
     if (isTestMode && !testMock.useRealApi) {
+      if (testMock.queryDelayMs > 0) {
+        await new Promise(resolve => setTimeout(resolve, testMock.queryDelayMs));
+      }
       if (testMock.queryError != null) {
         throw new Error(testMock.queryError);
       }
@@ -415,6 +432,9 @@ const registerIpcHandlers = (): void => {
   handle(IPC.BULK_QUERY, async (soql) => {
     assertString(soql);
     if (isTestMode && !testMock.useRealApi) {
+      if (testMock.queryDelayMs > 0) {
+        await new Promise(resolve => setTimeout(resolve, testMock.queryDelayMs));
+      }
       // テストモードでは REST と同じ testMock を使う（フロー検証目的）
       if (testMock.queryError != null) {
         throw new Error(testMock.queryError);

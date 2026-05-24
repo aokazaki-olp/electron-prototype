@@ -179,6 +179,8 @@ export type TestSetupData = {
   queryResult?: QueryResult | null;
   /** query() を必ずエラーで終わらせる（メッセージ）。null で正常動作 */
   queryError?: string | null;
+  /** query() / bulkQuery() の応答に挟む人工遅延 (ms)。skeleton 表示の e2e で使う */
+  queryDelayMs?: number;
 };
 
 /**
