@@ -14,6 +14,7 @@ import type {
   AppSettings,
   LogLevel,
   SoqlTabsState,
+  ColumnSizesState,
 } from '@app/ipc-contract';
 
 const api = {
@@ -52,6 +53,10 @@ const api = {
   // SOQL タブ永続化
   loadTabs: () => ipcRenderer.invoke(IPC.LOAD_TABS),
   saveTabs: (state: SoqlTabsState) => ipcRenderer.invoke(IPC.SAVE_TABS, state),
+
+  // 列幅永続化
+  loadColumnSizes: () => ipcRenderer.invoke(IPC.LOAD_COLUMN_SIZES),
+  saveColumnSizes: (state: ColumnSizesState) => ipcRenderer.invoke(IPC.SAVE_COLUMN_SIZES, state),
 
   // エクスポート
   exportCsv: (records: Record<string, unknown>[], columns: string[], options: CsvExportOptions) =>

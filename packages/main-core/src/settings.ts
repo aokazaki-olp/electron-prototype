@@ -114,15 +114,16 @@ export const getProfile = (id: string): SfConnectionProfile | undefined =>
 // SOQL タブ永続化（CODING_RULES §7.3 遵守: renderer で localStorage を使わない）
 // ============================================================================
 
-import type { SoqlTabsState } from '@app/ipc-contract';
+import type { ColumnSizesState, SoqlTabsState } from '@app/ipc-contract';
 
 interface TabStoreSchema {
   soqlTabs: SoqlTabsState | null;
+  columnSizes: ColumnSizesState;
 }
 
 const tabStore = new Store<TabStoreSchema>({
   name: `${BUILD.storeName}-tabs`,
-  defaults: { soqlTabs: null },
+  defaults: { soqlTabs: null, columnSizes: {} },
 });
 
 /**
@@ -140,6 +141,23 @@ export const loadSoqlTabs = (): SoqlTabsState | null =>
  */
 export const saveSoqlTabs = (state: SoqlTabsState): void => {
   tabStore.set('soqlTabs', state);
+};
+
+/**
+ * 結果テーブルの列幅マップを読み出す。
+ *
+ * @returns sObject 別 / フィールド別の列幅マップ。未保存の場合は空オブジェクト
+ */
+export const loadColumnSizes = (): ColumnSizesState =>
+  tabStore.get('columnSizes', {});
+
+/**
+ * 結果テーブルの列幅マップを永続化する（全体上書き）。
+ *
+ * @param state - sObject 別 / フィールド別の列幅マップ
+ */
+export const saveColumnSizes = (state: ColumnSizesState): void => {
+  tabStore.set('columnSizes', state);
 };
 
 // ============================================================================

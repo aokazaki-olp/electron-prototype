@@ -6,16 +6,22 @@ import {
   getFilteredRowModel,
   flexRender,
   type ColumnDef,
+  type ColumnSizingState,
   type SortingState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Download, FileSpreadsheet, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ChevronDown, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { showToast } from './Toast.js';
 import { useAppStore } from '../store.js';
 import type { QueryResult, CsvExportOptions } from '@app/ipc-contract';
 
 interface Props {
   result: QueryResult | null;
+  /**
+   * 列幅永続化の名前空間に使う sObject 名 (例: `'Account'`)。
+   * `undefined` の場合は永続化しない (空のクエリ・サブクエリ等のフォールバック)。
+   */
+  sObjectName?: string;
   /**
    * 空状態に表示するスニペットをユーザーがクリックしたとき呼ばれる。
    * `undefined` の場合はスニペット自体を表示しない（テストや組み込み用途）。
@@ -95,7 +101,10 @@ const SkeletonTable = ({ colCount }: { colCount: number }): JSX.Element => {
   );
 };
 
-export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
+const DEFAULT_COLUMN_SIZE = 150;
+const COLUMN_SIZE_DEBOUNCE_MS = 500;
+
+export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX.Element => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilterInput, setGlobalFilterInput] = useState('');
   const [globalFilter, setGlobalFilter] = useState('');
@@ -106,7 +115,50 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
     bom: true,
     lineEnding: 'CRLF',
   });
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>({});
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // sObjectName 切替時に該当オブジェクトの保存済み列幅を呼び出して反映する。
+  // 取得失敗時は黙って空 (=デフォルト幅) にフォールバック。
+  useEffect(() => {
+    if (!sObjectName) {
+      setColumnSizing({});
+      return;
+    }
+    let cancelled = false;
+    void window.sfx.loadColumnSizes().then(all => {
+      if (cancelled) return;
+      setColumnSizing(all[sObjectName] ?? {});
+    }).catch(() => { /* 起動直後の race 等は無視 */ });
+    return () => { cancelled = true; };
+  }, [sObjectName]);
+
+  // 列幅変更を sObject 別に永続化 (500ms debounce)
+  const handleColumnSizingChange = useCallback((updater: ColumnSizingState | ((prev: ColumnSizingState) => ColumnSizingState)) => {
+    setColumnSizing(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (!sObjectName) return next;
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = setTimeout(() => {
+        void window.sfx.loadColumnSizes().then(all => {
+          const merged = { ...all, [sObjectName]: next };
+          void window.sfx.saveColumnSizes(merged).catch(() => {
+            window.sfx.rendererLog('warn', '列幅の保存に失敗しました');
+          });
+        }).catch(() => { /* 取得失敗は黙って諦める */ });
+      }, COLUMN_SIZE_DEBOUNCE_MS);
+      return next;
+    });
+  }, [sObjectName]);
+
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    };
+  }, []);
 
   // 実行中の経過秒数。Bulk は数十秒〜数分かかるので「動いている」感を出す。
   useEffect(() => {
@@ -145,9 +197,13 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
   const table = useReactTable({
     data: result?.records ?? [],
     columns,
-    state: { sorting, globalFilter },
+    state: { sorting, globalFilter, columnSizing },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    onColumnSizingChange: handleColumnSizingChange,
+    enableColumnResizing: true,
+    columnResizeMode: 'onChange',
+    defaultColumn: { minSize: 50, size: DEFAULT_COLUMN_SIZE, maxSize: 800 },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -170,12 +226,8 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
     ? virtualizer.getTotalSize() - lastItem.end
     : 0;
 
-  const handleExportCsv = async () => {
+  const exportCsvWithOptions = async (options: CsvExportOptions) => {
     if (!result) return;
-    const options: CsvExportOptions = {
-      bom: exportDialog.bom,
-      lineEnding: exportDialog.lineEnding,
-    };
     try {
       await window.sfx.exportCsv(result.records, cols, options);
       setExportDialog(d => ({ ...d, open: false }));
@@ -186,7 +238,25 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
     }
   };
 
+  // ドロップダウンから直接呼ぶワンショット CSV (既定 = BOM + CRLF: Excel との互換を優先)
+  const handleQuickCsv = async () => {
+    setExportMenuOpen(false);
+    await exportCsvWithOptions({ bom: true, lineEnding: 'CRLF' });
+  };
+
+  // 詳細ダイアログ経由 (BOM / 改行コード を選んでから保存)
+  const handleExportCsv = () => exportCsvWithOptions({
+    bom: exportDialog.bom,
+    lineEnding: exportDialog.lineEnding,
+  });
+
+  const openCsvDetailDialog = () => {
+    setExportMenuOpen(false);
+    setExportDialog(d => ({ ...d, open: true }));
+  };
+
   const handleExportExcel = async () => {
+    setExportMenuOpen(false);
     if (!result) return;
     try {
       await window.sfx.exportQueryExcel(result.records, cols);
@@ -196,6 +266,23 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
       showToast('error', `Excel 保存に失敗しました: ${msg}`);
     }
   };
+
+  // ドロップダウン: 外側クリック / Esc で閉じる
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (!exportMenuRef.current?.contains(e.target as Node)) setExportMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExportMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [exportMenuOpen]);
 
   // モーダル: Esc クローズ
   useEffect(() => {
@@ -258,24 +345,53 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
           disabled={!result || queryLoading}
           className="ml-auto w-48 px-2 py-0.5 text-xs border border-slate-300 rounded outline-none focus:border-blue-500 disabled:bg-slate-100 disabled:cursor-not-allowed"
         />
-        <button
-          type="button"
-          onClick={() => setExportDialog(d => ({ ...d, open: true }))}
-          disabled={!result || queryLoading}
-          className="flex items-center gap-1 px-2 py-0.5 text-xs bg-slate-200 hover:bg-slate-300 rounded disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Download size={12} />
-          CSV
-        </button>
-        <button
-          type="button"
-          onClick={handleExportExcel}
-          disabled={!result || queryLoading}
-          className="flex items-center gap-1 px-2 py-0.5 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <FileSpreadsheet size={12} />
-          Excel
-        </button>
+        {/* エクスポート: CSV (quick) / CSV 詳細 / Excel をまとめた dropdown */}
+        <div className="relative" ref={exportMenuRef}>
+          <button
+            type="button"
+            onClick={() => setExportMenuOpen(o => !o)}
+            disabled={!result || queryLoading}
+            aria-haspopup="menu"
+            aria-expanded={exportMenuOpen}
+            className="flex items-center gap-1 px-2 py-0.5 text-xs bg-slate-200 hover:bg-slate-300 rounded disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            エクスポート
+            <ChevronDown size={12} />
+          </button>
+          {exportMenuOpen && (
+            <div
+              role="menu"
+              aria-label="エクスポート形式"
+              className="absolute right-0 top-full mt-1 w-48 bg-white border border-slate-200 rounded shadow-lg z-30 py-1"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleQuickCsv}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 text-slate-700"
+              >
+                CSV (BOM + CRLF)
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={openCsvDetailDialog}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 text-slate-700"
+              >
+                CSV…（詳細設定）
+              </button>
+              <div className="border-t border-slate-100 my-1" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={handleExportExcel}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-green-50 text-green-700"
+              >
+                Excel (.xlsx)
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 実行中: 経過秒数バー */}
@@ -297,22 +413,40 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
         {queryLoading ? (
           <SkeletonTable colCount={Math.min(Math.max(cols.length, 5), 8)} />
         ) : (
-        <table className="text-xs border-collapse w-full">
+        <table className="text-xs border-collapse" style={{ width: table.getTotalSize() }}>
           <thead className="sticky top-0 bg-slate-100 z-10">
             {table.getHeaderGroups().map(hg => (
               <tr key={hg.id}>
                 {hg.headers.map(header => (
                   <th
                     key={header.id}
-                    onClick={header.column.getToggleSortingHandler()}
-                    className="px-2 py-1.5 text-left font-semibold text-slate-600 border-b border-r border-slate-200 whitespace-nowrap cursor-pointer hover:bg-slate-200 select-none"
+                    style={{ width: header.getSize() }}
+                    className="relative px-2 py-1.5 text-left font-semibold text-slate-600 border-b border-r border-slate-200 whitespace-nowrap select-none"
                   >
-                    <div className="flex items-center gap-1">
+                    <div
+                      onClick={header.column.getToggleSortingHandler()}
+                      className="flex items-center gap-1 cursor-pointer hover:text-blue-600 pr-2"
+                    >
                       {flexRender(header.column.columnDef.header, header.getContext())}
                       {header.column.getIsSorted() === 'asc' ? <ArrowUp size={10} /> :
                        header.column.getIsSorted() === 'desc' ? <ArrowDown size={10} /> :
                        <ArrowUpDown size={10} className="text-slate-300" />}
                     </div>
+                    {/* 列幅ドラッグハンドル: 右端の 4px 透明領域 */}
+                    {header.column.getCanResize() && (
+                      <div
+                        onMouseDown={header.getResizeHandler()}
+                        onTouchStart={header.getResizeHandler()}
+                        onDoubleClick={() => header.column.resetSize()}
+                        role="separator"
+                        aria-label={`${String(header.column.columnDef.header)} 列幅を調整`}
+                        className={`absolute right-0 top-0 h-full w-1 cursor-col-resize select-none touch-none ${
+                          header.column.getIsResizing()
+                            ? 'bg-blue-400'
+                            : 'bg-transparent hover:bg-blue-300'
+                        }`}
+                      />
+                    )}
                   </th>
                 ))}
               </tr>
@@ -332,7 +466,8 @@ export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
                   {row.getVisibleCells().map(cell => (
                     <td
                       key={cell.id}
-                      className="px-2 py-1 border-b border-r border-slate-100 max-w-xs truncate"
+                      style={{ width: cell.column.getSize() }}
+                      className="px-2 py-1 border-b border-r border-slate-100 truncate"
                       title={String(cell.getValue() ?? '')}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

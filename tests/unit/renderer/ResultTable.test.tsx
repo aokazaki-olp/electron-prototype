@@ -32,7 +32,7 @@ describe('ResultTable — レンダリング', () => {
     expect(screen.getByText(/SOQLを実行すると結果が表示されます/)).toBeInTheDocument();
   });
 
-  it('レコードがある場合は件数表示 + テーブルヘッダ + ボタン', () => {
+  it('レコードがある場合は件数表示 + テーブルヘッダ + エクスポートボタン', () => {
     const result = makeQueryResult({
       totalSize: 2, fetchedCount: 2,
       records: [
@@ -45,8 +45,18 @@ describe('ResultTable — レンダリング', () => {
     expect(screen.getByText(/2件取得/)).toBeInTheDocument();
     expect(screen.getByText('Id')).toBeInTheDocument();
     expect(screen.getByText('Name')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /CSV/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Excel/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /エクスポート/ })).toBeInTheDocument();
+  });
+
+  it('エクスポートボタンで dropdown が開き CSV / Excel メニューが出る', () => {
+    const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
+    renderTable(result);
+
+    fireEvent.click(screen.getByRole('button', { name: /エクスポート/ }));
+    expect(screen.getByRole('menu', { name: 'エクスポート形式' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /CSV \(BOM/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /CSV…/ })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /Excel/ })).toBeInTheDocument();
   });
 
   it('totalSize > fetchedCount で「全体」表示', () => {
@@ -78,11 +88,17 @@ describe('ResultTable — レンダリング', () => {
 });
 
 describe('ResultTable — CSV エクスポートダイアログ', () => {
-  it('CSV ボタンでモーダルが開く', () => {
+  // dropdown → CSV…（詳細設定）の 2 段階で開くようになったため、共通ヘルパで開ける
+  const openCsvDetailDialog = () => {
+    fireEvent.click(screen.getByRole('button', { name: /エクスポート/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /CSV…/ }));
+  };
+
+  it('CSV…（詳細設定）でモーダルが開く', () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
     renderTable(result);
 
-    fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+    openCsvDetailDialog();
     expect(screen.getByRole('dialog', { name: 'CSV エクスポート設定' })).toBeInTheDocument();
     expect(screen.getByText(/BOM を付与する/)).toBeInTheDocument();
   });
@@ -91,7 +107,7 @@ describe('ResultTable — CSV エクスポートダイアログ', () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
     renderTable(result);
 
-    fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+    openCsvDetailDialog();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
 
     fireEvent.keyDown(document, { key: 'Escape' });
@@ -102,7 +118,7 @@ describe('ResultTable — CSV エクスポートダイアログ', () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
     renderTable(result);
 
-    fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+    openCsvDetailDialog();
     fireEvent.click(screen.getByRole('button', { name: 'キャンセル' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -111,7 +127,7 @@ describe('ResultTable — CSV エクスポートダイアログ', () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
     renderTable(result);
 
-    fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+    openCsvDetailDialog();
     const lfRadio = screen.getByRole('radio', { name: 'LF' });
     fireEvent.click(lfRadio);
     expect(lfRadio).toBeChecked();
@@ -119,27 +135,46 @@ describe('ResultTable — CSV エクスポートダイアログ', () => {
 });
 
 describe('ResultTable — エラーハンドリング', () => {
-  it('exportCsv の失敗で role=alert が出る', async () => {
+  it('exportCsv の失敗で toast (role=alert) が出る', async () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
     (window.sfx.exportCsv as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('write failed'));
     renderTable(result);
 
-    fireEvent.click(screen.getByRole('button', { name: /CSV/ }));
+    // dropdown → 詳細ダイアログ → 保存
+    fireEvent.click(screen.getByRole('button', { name: /エクスポート/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /CSV…/ }));
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: '保存' }));
     });
     expect(screen.getByRole('alert')).toHaveTextContent(/write failed/);
   });
 
-  it('Excel エクスポートの失敗で role=alert が出る', async () => {
+  it('Excel エクスポートの失敗で toast (role=alert) が出る', async () => {
     const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
     (window.sfx.exportQueryExcel as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('xlsx failed'));
     renderTable(result);
 
+    fireEvent.click(screen.getByRole('button', { name: /エクスポート/ }));
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /Excel/ }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /Excel/ }));
     });
     expect(screen.getByRole('alert')).toHaveTextContent(/xlsx failed/);
+  });
+
+  it('CSV (BOM+CRLF) ワンショットで window.sfx.exportCsv が BOM+CRLF オプションで呼ばれる', async () => {
+    const result = makeQueryResult({ totalSize: 1, fetchedCount: 1, records: [{ a: 1 }] });
+    (window.sfx.exportCsv as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    renderTable(result);
+
+    fireEvent.click(screen.getByRole('button', { name: /エクスポート/ }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: /CSV \(BOM/ }));
+    });
+    expect(window.sfx.exportCsv).toHaveBeenCalledWith(
+      expect.any(Array),
+      expect.any(Array),
+      { bom: true, lineEnding: 'CRLF' },
+    );
   });
 });
 

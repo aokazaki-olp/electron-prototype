@@ -20,6 +20,8 @@ import {
   saveSettings,
   loadSoqlTabs,
   saveSoqlTabs,
+  loadColumnSizes,
+  saveColumnSizes,
   handleCallbackUrl,
   startOAuth,
   refreshAccessToken,
@@ -45,6 +47,7 @@ import {
 import {
   IPC,
   assertAppSettings,
+  assertColumnSizesState,
   assertCsvExportOptions,
   assertLogEntryArray,
   assertLogLevel,
@@ -530,6 +533,22 @@ const registerIpcHandlers = (): void => {
       return;
     }
     saveSoqlTabs(state);
+  });
+
+  // 列幅の永続化（CODING_RULES §7.3 遵守: renderer の localStorage を使わない）
+  // 隔離テストでは testMock 内に閉じ込めて実 store を汚染しない方針。
+  let testMockColumnSizes: import('@app/ipc-contract').ColumnSizesState = {};
+  handle(IPC.LOAD_COLUMN_SIZES, async () => {
+    if (isTestMode && !testMock.useRealApi) return testMockColumnSizes;
+    return loadColumnSizes();
+  });
+  handle(IPC.SAVE_COLUMN_SIZES, async (state) => {
+    assertColumnSizesState(state);
+    if (isTestMode && !testMock.useRealApi) {
+      testMockColumnSizes = state;
+      return;
+    }
+    saveColumnSizes(state);
   });
 
   // ログ

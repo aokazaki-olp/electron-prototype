@@ -34,6 +34,8 @@ export {
   loadInstanceUrl,
   loadSoqlTabs,
   saveSoqlTabs,
+  loadColumnSizes,
+  saveColumnSizes,
 } from './settings.js';
 
 // OAuth

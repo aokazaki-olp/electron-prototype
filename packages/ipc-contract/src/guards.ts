@@ -7,6 +7,7 @@
 
 import type {
   AppSettings,
+  ColumnSizesState,
   CsvExportOptions,
   LogEntry,
   LogLevel,
@@ -222,6 +223,33 @@ const isSoqlTabsState = (v: unknown): v is SoqlTabsState =>
 export const assertSoqlTabsState: (v: unknown) => asserts v is SoqlTabsState = (v) => {
   if (!isSoqlTabsState(v)) {
     throw new TypeError('IPC payload が SoqlTabsState ではありません');
+  }
+};
+
+// ============================================================================
+// ColumnSizesState (2 段ネスト Record)
+// ============================================================================
+
+const isColumnSizesState = (v: unknown): v is ColumnSizesState => {
+  if (!isPlainObject(v)) return false;
+  for (const inner of Object.values(v)) {
+    if (!isPlainObject(inner)) return false;
+    for (const size of Object.values(inner)) {
+      if (!isNumber(size)) return false;
+    }
+  }
+  return true;
+};
+
+/**
+ * `unknown` が [[ColumnSizesState]] であることを assert する。
+ *
+ * @param v - renderer から送られた未検証の payload
+ * @throws {TypeError} payload が 2 段ネスト Record<string, Record<string, number>> でない場合
+ */
+export const assertColumnSizesState: (v: unknown) => asserts v is ColumnSizesState = (v) => {
+  if (!isColumnSizesState(v)) {
+    throw new TypeError('IPC payload が ColumnSizesState ではありません');
   }
 };
 

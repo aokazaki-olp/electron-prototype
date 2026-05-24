@@ -13,6 +13,18 @@ import type { AppSettings, PaneSizes } from '@app/ipc-contract';
 const DEFAULT_PANE_SIZES: PaneSizes = { leftPanel: 18, soqlPanel: 40 };
 const SAVE_DEBOUNCE_MS = 300;
 
+/**
+ * SOQL の最初の `FROM <sObject>` を取り出す。サブクエリ・関係参照は無視 (最初のヒットを採用)。
+ * 大文字小文字混在を許容する。
+ *
+ * @param soql - 評価対象 SOQL
+ * @returns sObject API 名。マッチしない場合は `undefined`
+ */
+const extractSObject = (soql: string): string | undefined => {
+  const m = soql.match(/\bFROM\s+([A-Za-z0-9_]+)/i);
+  return m?.[1];
+};
+
 type BottomTab = 'result' | 'log';
 
 const BOTTOM_TABS: readonly BottomTab[] = ['result', 'log'];
@@ -267,7 +279,13 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
 
                 {/* タブコンテンツ */}
                 <div className="flex-1 overflow-hidden">
-                  {bottomTab === 'result' && <ResultTable result={result} onSnippetClick={setSoql} />}
+                  {bottomTab === 'result' && (
+                    <ResultTable
+                      result={result}
+                      sObjectName={activeTab ? extractSObject(activeTab.soql) : undefined}
+                      onSnippetClick={setSoql}
+                    />
+                  )}
                   {bottomTab === 'log' && <LogViewer />}
                 </div>
               </div>

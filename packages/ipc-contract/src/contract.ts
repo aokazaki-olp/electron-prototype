@@ -112,6 +112,18 @@ export interface SoqlTabsState {
 }
 
 // ============================================================================
+// 結果テーブル: 列幅永続化（CODING_RULES §7.3 遵守: renderer で localStorage を使わない）
+// ============================================================================
+
+/**
+ * 列幅の永続化マップ。`sObjectName -> fieldName -> pixel` の 2 段ネスト。
+ *
+ * @remarks 大量 org でも肥大化を避けるため、AppSettings には入れず別 store に分離する。
+ * 同名 sObject の同名フィールドは共通幅を共有する。
+ */
+export type ColumnSizesState = Record<string, Record<string, number>>;
+
+// ============================================================================
 // エクスポート
 // ============================================================================
 
@@ -169,6 +181,10 @@ export const IPC = {
   LOAD_TABS: 'tabs:load',
   SAVE_TABS: 'tabs:save',
 
+  // 結果テーブル列幅の永続化
+  LOAD_COLUMN_SIZES: 'column-sizes:load',
+  SAVE_COLUMN_SIZES: 'column-sizes:save',
+
   // エクスポート
   EXPORT_CSV: 'export:csv',
   EXPORT_QUERY_EXCEL: 'export:query-excel',
@@ -225,6 +241,10 @@ export interface SalesforceExplorerApi {
   loadTabs(): Promise<SoqlTabsState | null>;
   saveTabs(state: SoqlTabsState): Promise<void>;
 
+  // 結果テーブル列幅の永続化
+  loadColumnSizes(): Promise<ColumnSizesState>;
+  saveColumnSizes(state: ColumnSizesState): Promise<void>;
+
   // エクスポート
   exportCsv(records: Record<string, unknown>[], columns: string[], options: CsvExportOptions): Promise<void>;
   exportQueryExcel(records: Record<string, unknown>[], columns: string[]): Promise<void>;
@@ -274,6 +294,7 @@ export const EXPECTED_API_KEYS = {
     'createRecord', 'updateRecord', 'deleteRecord',
     'saveSoqlFile', 'openSoqlFile',
     'loadTabs', 'saveTabs',
+    'loadColumnSizes', 'saveColumnSizes',
     'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportLogFile',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],

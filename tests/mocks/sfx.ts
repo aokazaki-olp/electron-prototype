@@ -42,6 +42,9 @@ export const makeMockSfx = (): SalesforceExplorerApi => ({
   loadTabs: vi.fn().mockResolvedValue(null),
   saveTabs: vi.fn().mockResolvedValue(undefined),
 
+  loadColumnSizes: vi.fn().mockResolvedValue({}),
+  saveColumnSizes: vi.fn().mockResolvedValue(undefined),
+
   exportCsv: vi.fn().mockResolvedValue(undefined),
   exportQueryExcel: vi.fn().mockResolvedValue(undefined),
   exportObjectDefinition: vi.fn().mockResolvedValue(undefined),
