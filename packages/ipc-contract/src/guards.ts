@@ -205,12 +205,17 @@ export const assertNumber: (v: unknown) => asserts v is number = (v) => {
 // SoqlTabsState
 // ============================================================================
 
+const isExecutionMode = (v: unknown): v is 'rest' | 'bulk' =>
+  v === 'rest' || v === 'bulk';
+
 const isSoqlTabSnapshot = (v: unknown): v is SoqlTabSnapshot =>
   isPlainObject(v)
   && isString(v['id'])
   && isString(v['name'])
   && isString(v['soql'])
-  && isBoolean(v['fetchAll']);
+  && isBoolean(v['fetchAll'])
+  // executionMode は省略可。あれば 'rest' | 'bulk' のいずれか。
+  && (v['executionMode'] === undefined || isExecutionMode(v['executionMode']));
 
 const isSoqlTabsState = (v: unknown): v is SoqlTabsState =>
   isPlainObject(v)
@@ -265,7 +270,9 @@ const isLogEntry = (v: unknown): v is LogEntry =>
   isPlainObject(v)
   && isString(v['date'])
   && isLogLevel(v['level'])
-  && isString(v['text']);
+  && isString(v['text'])
+  // seq は省略可 (旧 entry 互換)。あれば有限数値。
+  && (v['seq'] === undefined || isNumber(v['seq']));
 
 /**
  * `unknown` が [[LogEntry]] の配列であることを assert する。

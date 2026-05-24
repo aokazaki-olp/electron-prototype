@@ -18,10 +18,9 @@ export default defineConfig({
     globals: true,
     include: ['tests/unit/**/*.test.{ts,tsx}'],
     exclude: ['tests/e2e/**', 'node_modules/**'],
-    environmentMatchGlobs: [
-      ['tests/unit/renderer/**', 'happy-dom'],
-      ['tests/unit/main/**', 'node'],
-    ],
+    // 環境戦略: vitest のデフォルト ('node') を main プロセス用テストに採用し、renderer 用のテストは
+    // ファイル先頭の `// @vitest-environment happy-dom` プラグマで明示的に happy-dom を指定する。
+    // (vitest v4 で environmentMatchGlobs が deprecate されたため、プラグマ方式に統一)
     setupFiles: ['tests/setup/vitest.setup.ts'],
     coverage: {
       provider: 'v8',

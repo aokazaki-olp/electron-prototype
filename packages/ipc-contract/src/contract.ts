@@ -106,11 +106,20 @@ export interface QueryResult {
 // SOQL タブ永続化（CODING_RULES §7.3 遵守: renderer で localStorage を使わない）
 // ============================================================================
 
+/**
+ * SOQL クエリ実行方式。
+ * - `rest`: SOQL REST `/query` (高速、〜数万件向け)
+ * - `bulk`: Bulk API v2 Query (API call 節約、大量件数向け、開始まで overhead あり)
+ */
+export type ExecutionMode = 'rest' | 'bulk';
+
 export interface SoqlTabSnapshot {
   id: string;
   name: string;
   soql: string;
   fetchAll: boolean;
+  /** 省略時は `rest` 扱い (旧データとの互換)。 */
+  executionMode?: ExecutionMode;
 }
 
 export interface SoqlTabsState {
@@ -149,6 +158,13 @@ export interface LogEntry {
   date: string;
   level: LogLevel;
   text: string;
+  /**
+   * 単調増加のシーケンス番号 (main で発番)。
+   * renderer 側の React key としてエントリを一意に識別するために使う。
+   * 同一 main プロセス内で衝突せず、フィルタ・並べ替え後も entry を追跡できる。
+   * 省略時は 0 として扱う (旧データ互換)。
+   */
+  seq?: number;
 }
 
 // ============================================================================
@@ -311,4 +327,41 @@ export const EXPECTED_API_KEYS = {
     'exportCsv', 'exportQueryExcel', 'exportObjectDefinition',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
-} as const satisfies Record<'explorer' | 'compass', readonly string[]>;
+} as const satisfies {
+  explorer: readonly (keyof SalesforceExplorerApi)[];
+  compass: readonly (keyof LiteApi)[];
+};
+
+// ============================================================================
+// 型レベル completeness check
+// ============================================================================
+// SalesforceExplorerApi / LiteApi にメソッドを追加したのに EXPECTED_API_KEYS の
+// 列挙を更新しなかった場合、コンパイル時にここで型エラーになる。これにより:
+//   - preload の起動時 assertion (§11.3) が誤って通過するのを防ぐ
+//   - csp-security.spec / compass-boundary.spec の自動導出が正しく動く
+//   - tests/mocks/sfx の網羅性が型で担保される
+//
+// 仕組み: 「ApiKey から ExpectedKey を除いた差集合が `never` (= 完全網羅)」を検査する。
+// 三項条件型で `never extends never ? true : { error; missing }` となり、不足キーがある場合は
+// `true` 側 (true 型) ではなく `{error, missing}` 側 (object 型) に解決されて代入が失敗する。
+// 失敗時のエラーメッセージには `missing` フィールドに「列挙漏れしているキー名」が出るので、
+// 読み手はそのキーを EXPECTED_API_KEYS.{explorer|compass} に追加すれば直る。
+//
+// 注意: これらは値・型ともにファイル外から参照されない (内部的な compile-time 検査)。
+// `_` プレフィックスは「未使用 export」ではなく型システムへの assertion であることを示す慣習。
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _AssertExplorerKeysComplete =
+  Exclude<keyof SalesforceExplorerApi, typeof EXPECTED_API_KEYS.explorer[number]> extends never
+    ? true
+    : { error: 'SalesforceExplorerApi のキーが EXPECTED_API_KEYS.explorer に列挙されていません'; missing: Exclude<keyof SalesforceExplorerApi, typeof EXPECTED_API_KEYS.explorer[number]> };
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _assertExplorerKeysComplete: _AssertExplorerKeysComplete = true;
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+type _AssertCompassKeysComplete =
+  Exclude<keyof LiteApi, typeof EXPECTED_API_KEYS.compass[number]> extends never
+    ? true
+    : { error: 'LiteApi のキーが EXPECTED_API_KEYS.compass に列挙されていません'; missing: Exclude<keyof LiteApi, typeof EXPECTED_API_KEYS.compass[number]> };
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _assertCompassKeysComplete: _AssertCompassKeysComplete = true;

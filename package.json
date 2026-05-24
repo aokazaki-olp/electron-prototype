@@ -8,6 +8,11 @@
     "apps/*",
     "packages/*"
   ],
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "packageManager": "npm@10.0.0",
   "scripts": {
     "dev": "npm run dev:explorer",
     "dev:explorer": "npm -w @app/explorer run dev",
