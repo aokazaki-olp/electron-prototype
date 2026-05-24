@@ -44,16 +44,49 @@ export const clearDescribeCache = (): void => {
 // 書き込みセッション
 // ============================================================================
 
-// profileId → 再認証した時刻 (Date.now())
-const writeSessionMap = new Map<string, number>();
+interface WriteSessionEntry {
+  authorizedAt: number;
+  /** タイムアウト到達時に自動 cleanup するためのタイマー。Map 単調増加を防ぐ。 */
+  timer: ReturnType<typeof setTimeout>;
+}
+
+// profileId → 書き込みセッション情報
+const writeSessionMap = new Map<string, WriteSessionEntry>();
 
 /**
  * 書き込み再認証セッションを開始としてマークする。
  *
+ * @remarks プロファイルの `writeSessionTimeoutMin` 到達時に自動的にエントリを削除する
+ *   タイマーをセットする。これにより長期実行で Map が単調増加するリークを防ぐ。
+ *   `writeSessionTimeoutMin === 0` (毎回確認) の場合はエントリを保持しない。
+ *
  * @param profileId - 再認証が完了したプロファイル ID
  */
 export const markWriteSession = (profileId: string): void => {
-  writeSessionMap.set(profileId, Date.now());
+  // 既存タイマーは clear してから上書きする (短時間で複数回 mark された場合の重複防止)
+  const existing = writeSessionMap.get(profileId);
+  if (existing) {
+    clearTimeout(existing.timer);
+  }
+
+  const profile = getProfile(profileId);
+  if (!profile || profile.mode !== 'readwrite' || profile.writeSessionTimeoutMin === 0) {
+    // readonly や毎回確認 (timeoutMin=0) ならセッションを保持する意味がない
+    writeSessionMap.delete(profileId);
+    return;
+  }
+
+  const timeoutMs = profile.writeSessionTimeoutMin * 60 * 1000;
+  const timer = setTimeout(() => {
+    writeSessionMap.delete(profileId);
+    log.debug(`[SF] write session expired (auto-cleanup): ${profileId}`);
+  }, timeoutMs);
+  // Node の setTimeout 戻り値は Timer | NodeJS.Timeout だが unref() があれば呼んでも安全
+  if (typeof (timer as { unref?: () => void }).unref === 'function') {
+    (timer as { unref: () => void }).unref();
+  }
+
+  writeSessionMap.set(profileId, { authorizedAt: Date.now(), timer });
 };
 
 /**
@@ -62,6 +95,10 @@ export const markWriteSession = (profileId: string): void => {
  * @param profileId - 破棄対象のプロファイル ID
  */
 export const clearWriteSession = (profileId: string): void => {
+  const entry = writeSessionMap.get(profileId);
+  if (entry) {
+    clearTimeout(entry.timer);
+  }
   writeSessionMap.delete(profileId);
 };
 
@@ -74,11 +111,11 @@ const isWriteSessionValid = (profileId: string): boolean => {
   if (profile.writeSessionTimeoutMin === 0) {
     return false;
   }
-  const authorizedAt = writeSessionMap.get(profileId);
-  if (authorizedAt == null) {
+  const entry = writeSessionMap.get(profileId);
+  if (entry == null) {
     return false;
   }
-  return Date.now() - authorizedAt < profile.writeSessionTimeoutMin * 60 * 1000;
+  return Date.now() - entry.authorizedAt < profile.writeSessionTimeoutMin * 60 * 1000;
 };
 
 // ============================================================================
@@ -161,7 +198,9 @@ const flattenRecord = (
     return result;
   }
   for (const [key, value] of Object.entries(record)) {
-    if (key === 'attributes') continue;
+    if (key === 'attributes') {
+      continue;
+    }
     const fullKey = prefix ? `${prefix}.${key}` : key;
     if (isPlainObject(value)) {
       Object.assign(result, flattenRecord(value, fullKey, depth + 1));
@@ -434,7 +473,9 @@ const writeAudit = (
   resource: string,
 ): void => {
   const profile = getProfile(profileId);
-  if (!profile) throw new Error(`プロファイルが見つかりません: ${profileId}`);
+  if (!profile) {
+    throw new Error(`プロファイルが見つかりません: ${profileId}`);
+  }
   auditLog(profile.name, op, resource, 1);
 };
 

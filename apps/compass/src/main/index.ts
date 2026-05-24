@@ -8,7 +8,7 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BUILD } from '@app/main-core';
+import { BUILD, registerProcessErrorHandlers, registerPermissionDenyAll } from '@app/main-core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -66,8 +66,12 @@ app.on('web-contents-created', (_event, contents) => {
     try {
       const target = new URL(navigationUrl);
       const allowed = process.env['ELECTRON_RENDERER_URL'];
-      if (allowed && navigationUrl.startsWith(allowed)) return;
-      if (target.protocol === 'file:') return;
+      if (allowed && navigationUrl.startsWith(allowed)) {
+        return;
+      }
+      if (target.protocol === 'file:') {
+        return;
+      }
       event.preventDefault();
       openExternalSafely(navigationUrl);
     } catch {
@@ -76,9 +80,15 @@ app.on('web-contents-created', (_event, contents) => {
   });
 });
 
+// main プロセス全体の未捕捉例外 / Promise 拒否を捕捉する。
+registerProcessErrorHandlers('compass');
+
 // Electron のトップレベル起動シーケンスを async/await に統一する
 void (async () => {
   await app.whenReady();
+
+  // §11 多層防御: 全 permission 要求を拒否 (Compass も SF API 通信のみ)
+  registerPermissionDenyAll();
 
   // process.defaultApp で開発/本番を判別し、本番 portable ビルドでは execPath のみで登録する。
   if (process.platform === 'win32') {

@@ -56,6 +56,20 @@ export const maskSensitive = (value: unknown): unknown => {
 };
 
 // ============================================================================
+// 単調増加シーケンス番号
+// ============================================================================
+
+// main プロセス起動から終了までユニークな単調増加の番号。renderer 側の React key として
+// LogEntry を一意に識別するために使う。フィルタ・並べ替え後も追跡可能。
+let logSeq = 0;
+const nextSeq = (): number => ++logSeq;
+
+/** テスト専用: シーケンスをリセットする。本番コードから呼ばない。 */
+export const _resetLogSeqForTest = (): void => {
+  logSeq = 0;
+};
+
+// ============================================================================
 // 起動前ログのリングバッファ（GET_RECENT_LOGS 用）
 // ============================================================================
 
@@ -126,6 +140,7 @@ export const initLogger = (broadcaster?: (entry: LogEntry) => void): void => {
       date: message.date.toISOString(),
       level: toLogLevel(message.level),
       text: maskedData.map(String).join(' '),
+      seq: nextSeq(),
     };
     pushBuffer(entry);
     if (broadcaster) {

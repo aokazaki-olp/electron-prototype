@@ -170,6 +170,11 @@ const waitForCallback = (expectedState: string): Promise<string> =>
         reject(new Error('OAuth 認証がタイムアウトしました (90秒)'));
       }
     }, 90 * 1000);
+    // ユーザーが認証完了前に quit した場合に 90 秒タイマーがイベントループを保持して
+    // プロセス終了を遅らせるのを防ぐ。clearTimeout は完了/キャンセル時に必ず呼ぶ。
+    if (typeof (timer as { unref?: () => void }).unref === 'function') {
+      (timer as { unref: () => void }).unref();
+    }
 
     pendingCallback = { resolve, reject, state: expectedState, timer };
     log.debug('[OAuth] コールバック待機開始');
@@ -322,7 +327,20 @@ export const isConnected = (profileId: string): boolean =>
  * @param accessToken - 注入するアクセストークン
  * @param instanceUrl - 注入する instance URL
  */
+/**
+ * テスト専用: メモリ上のアクセストークンと instance URL を直接注入する。
+ * 本番ビルドから呼び出すと throw する (誤呼び出し時に sandbox 境界を破る危険を防ぐ)。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param accessToken - 注入するアクセストークン
+ * @param instanceUrl - 注入する instance URL
+ * @throws {Error} NODE_ENV !== 'test' の環境で呼ばれた場合
+ * @internal
+ */
 export const injectTokenForTest = (profileId: string, accessToken: string, instanceUrl: string): void => {
+  if (process.env['NODE_ENV'] !== 'test') {
+    throw new Error('[sfOAuth] injectTokenForTest はテストモード (NODE_ENV=test) でのみ呼び出し可能です');
+  }
   accessTokenMap.set(profileId, accessToken);
   instanceUrlMemory.set(profileId, instanceUrl);
 };

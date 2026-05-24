@@ -48,7 +48,9 @@ export const BUILD_INFO_BY_TARGET = {
 
 const resolveTarget = (): BuildTarget => {
   const raw = process.env['BUILD_TARGET'];
-  if (raw === 'compass') return 'compass';
+  if (raw === 'compass') {
+    return 'compass';
+  }
   return 'explorer';
 };
 

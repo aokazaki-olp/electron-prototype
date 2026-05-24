@@ -70,3 +70,6 @@ export {
 
 // エクスポート (CSV / Excel)
 export { exportCsv, exportQueryExcel, exportObjectDefinition, toCsvBuffer } from './export.js';
+
+// main プロセス共通 setup
+export { registerProcessErrorHandlers, registerPermissionDenyAll } from './mainSetup.js';

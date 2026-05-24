@@ -43,6 +43,8 @@ import {
   exportCsv,
   exportQueryExcel,
   exportObjectDefinition,
+  registerProcessErrorHandlers,
+  registerPermissionDenyAll,
 } from '@app/main-core';
 import {
   IPC,
@@ -219,13 +221,19 @@ app.on('window-all-closed', () => {
 // ============================================================================
 
 const serializeError = (e: unknown): Error => {
-  if (e instanceof Error) {
-    const err = new Error(e.message);
-    // §11.5 stack は renderer に渡さない（app.log に残すのは catch 側の責務）
-    err.stack = undefined;
-    return err;
-  }
-  return new Error(String(e));
+  // §11.5 stack は renderer に渡さない (app.log に残すのは catch 側の責務)。
+  // - new Error() の生成と同時に stack を不変化することで、後段でうっかり stack を
+  //   付与し直す事故を不変条件として禁止する (writable:false, configurable:false)。
+  // - Error の subclass (HttpError 等) の追加プロパティは IPC 構造化クローンを通らないため、
+  //   plain Error にしぼってメッセージのみ伝える方針。
+  const message = e instanceof Error ? e.message : String(e);
+  const err = new Error(message);
+  Object.defineProperty(err, 'stack', {
+    value: undefined,
+    writable: false,
+    configurable: false,
+  });
+  return err;
 };
 
 const handle = <T>(
@@ -256,15 +264,23 @@ const registerIpcHandlers = (): void => {
   // テストモード専用: テスト用モックデータをセットアップするチャンネル
   if (isTestMode) {
     ipcMain.handle('test:setup', (_event, data: unknown) => {
-      if (typeof data !== 'object' || data === null || Array.isArray(data)) return;
+      if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+        return;
+      }
       const d = data as Record<string, unknown>;
-      if (Array.isArray(d['profiles'])) testMock.profiles = d['profiles'] as TestMockStore['profiles'];
-      if (Array.isArray(d['sobjects'])) testMock.sobjects = d['sobjects'] as TestMockStore['sobjects'];
+      if (Array.isArray(d['profiles'])) {
+        testMock.profiles = d['profiles'] as TestMockStore['profiles'];
+      }
+      if (Array.isArray(d['sobjects'])) {
+        testMock.sobjects = d['sobjects'] as TestMockStore['sobjects'];
+      }
       const describe = d['describe'];
       if (typeof describe === 'object' && describe !== null && !Array.isArray(describe)) {
         testMock.describe = describe as TestMockStore['describe'];
       }
-      if (typeof d['useRealApi'] === 'boolean') testMock.useRealApi = d['useRealApi'];
+      if (typeof d['useRealApi'] === 'boolean') {
+        testMock.useRealApi = d['useRealApi'];
+      }
       const activeProfileIdRaw = d['activeProfileId'];
       if (typeof activeProfileIdRaw === 'string') {
         testMock.activeProfileId = activeProfileIdRaw;
@@ -314,7 +330,9 @@ const registerIpcHandlers = (): void => {
   };
 
   handle(IPC.LOAD_SETTINGS, async () => {
-    if (isTestMode && !testMock.useRealApi) return mockSettings;
+    if (isTestMode && !testMock.useRealApi) {
+      return mockSettings;
+    }
     return loadSettings();
   });
   handle(IPC.SAVE_SETTINGS, async (settings) => {
@@ -329,15 +347,20 @@ const registerIpcHandlers = (): void => {
     // テストモードでは testMock を唯一の真とする（実 store からの漏えいを防ぐ）。
     // ただし testMock.useRealApi が true のときだけは実 store を使う
     // （real-oauth.spec.ts 等、保存済み refresh_token を前提とする結合テスト用）。
-    if (isTestMode && !testMock.useRealApi) return testMock.profiles;
+    if (isTestMode && !testMock.useRealApi) {
+      return testMock.profiles;
+    }
     return loadProfiles();
   });
   handle(IPC.SAVE_PROFILE, async (profile) => {
     assertProfile(profile);
     if (isTestMode && !testMock.useRealApi) {
       const idx = testMock.profiles.findIndex(p => p.id === profile.id);
-      if (idx >= 0) testMock.profiles[idx] = profile;
-      else testMock.profiles.push(profile);
+      if (idx >= 0) {
+        testMock.profiles[idx] = profile;
+      } else {
+        testMock.profiles.push(profile);
+      }
       return;
     }
     saveProfile(profile);
@@ -397,7 +420,9 @@ const registerIpcHandlers = (): void => {
 
   // SF API（読み取り）
   handle(IPC.LIST_SOBJECTS, async () => {
-    if (isTestMode && !testMock.useRealApi) return testMock.sobjects;
+    if (isTestMode && !testMock.useRealApi) {
+      return testMock.sobjects;
+    }
     return listSObjects(requireCurrentProfile());
   });
 
@@ -499,7 +524,9 @@ const registerIpcHandlers = (): void => {
         { name: 'すべてのファイル', extensions: ['*'] },
       ],
     });
-    if (canceled || !filePath) return;
+    if (canceled || !filePath) {
+      return;
+    }
     const text = logs
       .map(l => `[${l.date}] [${l.level.toUpperCase()}] ${l.text}`)
       .join('\n');
@@ -520,7 +547,9 @@ const registerIpcHandlers = (): void => {
         { name: 'すべてのファイル', extensions: ['*'] },
       ],
     });
-    if (canceled || !filePath) return;
+    if (canceled || !filePath) {
+      return;
+    }
     await writeFile(filePath, soql, 'utf-8');
   });
 
@@ -532,7 +561,9 @@ const registerIpcHandlers = (): void => {
       ],
       properties: ['openFile'],
     });
-    if (canceled || filePaths.length === 0 || !filePaths[0]) return null;
+    if (canceled || filePaths.length === 0 || !filePaths[0]) {
+      return null;
+    }
     const path = filePaths[0];
     const content = await readFile(path, 'utf-8');
     const baseName = basename(path).replace(/\.(soql|sql)$/i, '') || 'クエリ';
@@ -542,7 +573,9 @@ const registerIpcHandlers = (): void => {
   // SOQL タブ永続化（CODING_RULES §7.3 遵守: renderer の localStorage を使わない）
   handle(IPC.LOAD_TABS, async () => {
     // 隔離テスト: testMock.tabs を一次ソースとし、実 store からの漏れを防ぐ
-    if (isTestMode && !testMock.useRealApi) return testMock.tabs;
+    if (isTestMode && !testMock.useRealApi) {
+      return testMock.tabs;
+    }
     return loadSoqlTabs();
   });
   handle(IPC.SAVE_TABS, async (state) => {
@@ -559,7 +592,9 @@ const registerIpcHandlers = (): void => {
   // 隔離テストでは testMock 内に閉じ込めて実 store を汚染しない方針。
   let testMockColumnSizes: import('@app/ipc-contract').ColumnSizesState = {};
   handle(IPC.LOAD_COLUMN_SIZES, async () => {
-    if (isTestMode && !testMock.useRealApi) return testMockColumnSizes;
+    if (isTestMode && !testMock.useRealApi) {
+      return testMockColumnSizes;
+    }
     return loadColumnSizes();
   });
   handle(IPC.SAVE_COLUMN_SIZES, async (state) => {
@@ -585,11 +620,21 @@ const registerIpcHandlers = (): void => {
       lvl = 'debug';
     }
     switch (lvl) {
-      case 'error': log.error(msg); break;
-      case 'warn':  log.warn(msg);  break;
-      case 'info':  log.info(msg);  break;
-      case 'debug': log.debug(msg); break;
-      default: log.debug(msg);
+      case 'error':
+        log.error(msg);
+        break;
+      case 'warn':
+        log.warn(msg);
+        break;
+      case 'info':
+        log.info(msg);
+        break;
+      case 'debug':
+        log.debug(msg);
+        break;
+      default:
+        log.debug(msg);
+        break;
     }
   });
 };
@@ -597,6 +642,10 @@ const registerIpcHandlers = (): void => {
 // ============================================================================
 // 起動シーケンス
 // ============================================================================
+
+// main プロセス全体の未捕捉例外 / Promise 拒否を捕捉する (silent crash 防止)。
+// import-time に electron-log は既に file transport を持つので、initLogger 前でも記録は残る。
+registerProcessErrorHandlers('explorer');
 
 // Electron のトップレベル起動シーケンスを async/await に統一する
 void (async () => {
@@ -609,6 +658,9 @@ void (async () => {
     }
   });
   initAuditLogger();
+
+  // 多層防御: renderer 発行の permission 要求 (camera/mic/geolocation 等) を全拒否。
+  registerPermissionDenyAll();
 
   // process.defaultApp で開発/本番を判別し、本番 portable ビルドでは execPath のみで登録する。
   // argv[1] が undefined / '.' のときに resolve('') = CWD が登録される事故を避ける。

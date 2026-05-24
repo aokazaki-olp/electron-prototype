@@ -236,9 +236,11 @@ export const exportObjectDefinition = async (
       field.name,
       field.label,
       TYPE_JA[field.type] ?? field.type,
-      field.length || '',
-      field.precision || '',
-      field.scale || '',
+      // `||` だと length=0 / precision=0 / scale=0 が空欄になる (boolean / 整数 decimal 等)。
+      // `??` で「null/undefined のときだけ空欄」に絞ることで 0 を意味のある情報として残す。
+      field.length ?? '',
+      field.precision ?? '',
+      field.scale ?? '',
       field.nillable ? '' : '●',
       field.unique ? '●' : '',
       field.externalId ? '●' : '',
@@ -252,7 +254,9 @@ export const exportObjectDefinition = async (
   const widths = [30, 30, 20, 8, 8, 8, 8, 8, 8, 8, 30, 60];
   for (let i = 0; i < ws.columns.length; i++) {
     const col = ws.columns[i];
-    if (col == null) continue;
+    if (col == null) {
+      continue;
+    }
     col.width = widths[i] ?? 15;
   }
 

@@ -156,8 +156,22 @@ export const loadColumnSizes = (): ColumnSizesState =>
  * 結果テーブルの列幅マップを永続化する（全体上書き）。
  *
  * @param state - sObject 別 / フィールド別の列幅マップ
+ * @remarks 数千 sObject × 数十 field を持つ大規模 org で長期使用すると Map が肥大化する。
+ *   現状は上限カット等の自動 eviction は実装せず、超過時に log.warn で気付かせる方針。
  */
+const COLUMN_SIZES_WARN_BYTES = 5 * 1024 * 1024; // 5MB
+
 export const saveColumnSizes = (state: ColumnSizesState): void => {
+  // 想定外肥大化の早期検出: JSON.stringify は同期だが、保存対象を 1 回しか直列化しないので軽量。
+  // 5MB 超は通常使用では起こらないため、起きていれば実装側の漏れ (例: ノイズキー追加) の手掛かりになる。
+  try {
+    const size = JSON.stringify(state).length;
+    if (size > COLUMN_SIZES_WARN_BYTES) {
+      log.warn(`[Settings] columnSizes が ${(size / 1024 / 1024).toFixed(2)}MB に達しています。古い sObject エントリの整理を検討してください。`);
+    }
+  } catch {
+    // JSON 化失敗は store.set 側でも同様に失敗するため、ここで握りつぶす
+  }
   tabStore.set('columnSizes', state);
 };
 
@@ -168,7 +182,9 @@ export const saveColumnSizes = (state: ColumnSizesState): void => {
 let safeStorageWarned = false;
 
 const warnSafeStorageOnce = (): void => {
-  if (safeStorageWarned) return;
+  if (safeStorageWarned) {
+    return;
+  }
   safeStorageWarned = true;
   log.warn(
     '[Settings] safeStorage が利用できません。refresh_token は永続化されず、再起動後に再認証が必要です。' +
