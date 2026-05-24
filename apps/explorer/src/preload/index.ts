@@ -34,6 +34,7 @@ const api = {
   listSObjects: () => ipcRenderer.invoke(IPC.LIST_SOBJECTS),
   describeObject: (name: string) => ipcRenderer.invoke(IPC.DESCRIBE_OBJECT, name),
   query: (soql: string, maxRows: number) => ipcRenderer.invoke(IPC.QUERY, soql, maxRows),
+  bulkQuery: (soql: string) => ipcRenderer.invoke(IPC.BULK_QUERY, soql),
 
   // SF API（書き込み）
   createRecord: (objectName: string, fields: Record<string, unknown>) =>

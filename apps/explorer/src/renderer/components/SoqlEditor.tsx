@@ -39,6 +39,9 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   const [error, setError] = useState<string | null>(null);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  // 実行方式: 'rest' = SOQL REST /query（高速、〜数万件向け）、'bulk' = Bulk API v2 Query（API call 節約、大量件数向け）
+  // 「テスト的に」導入したため、現状はセッション内のローカルステート（タブごとに保存しない）
+  const [executionMode, setExecutionMode] = useState<'rest' | 'bulk'>('rest');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   const activeTab = tabs.find(t => t.id === activeTabId);
@@ -52,7 +55,10 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
     setError(null);
     setQueryLoading(true);
     try {
-      const result = await window.sfx.query(trimmed, maxRows);
+      // Bulk は常に全件取得（maxRows は無視）
+      const result = executionMode === 'bulk'
+        ? await window.sfx.bulkQuery(trimmed)
+        : await window.sfx.query(trimmed, maxRows);
       setTabResult(result);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -61,7 +67,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
     } finally {
       setQueryLoading(false);
     }
-  }, [soql, maxRows, setQueryLoading, setTabResult]);
+  }, [soql, maxRows, executionMode, setQueryLoading, setTabResult]);
 
   // runQuery の最新版を ref で保持し、useEffect の依存を runTrigger のみに絞る。
   // これにより soql 変更時に useEffect が誤発火してクエリが繰り返し実行されるのを防ぐ。
@@ -219,9 +225,43 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
           className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
         >
           <Play size={13} />
-          {queryLoading ? '実行中...' : '実行'}
+          {queryLoading
+            ? (executionMode === 'bulk' ? 'Bulk実行中...' : '実行中...')
+            : '実行'}
         </button>
         <span className="text-xs text-slate-400">Ctrl+Enter</span>
+
+        {/* 実行方式 (REST / Bulk) */}
+        <div
+          role="radiogroup"
+          aria-label="実行方式"
+          className="flex items-center gap-2 text-xs text-slate-600 ml-1 border-l border-slate-300 pl-3"
+        >
+          <span>方式:</span>
+          <label className="flex items-center gap-1 cursor-pointer">
+            <input
+              type="radio"
+              name="exec-mode"
+              value="rest"
+              checked={executionMode === 'rest'}
+              onChange={() => setExecutionMode('rest')}
+              className="accent-blue-500"
+            />
+            REST
+          </label>
+          <label className="flex items-center gap-1 cursor-pointer" title="Bulk API v2 経由で全件取得。大量件数向け。処理開始まで数十秒〜数分の overhead あり。">
+            <input
+              type="radio"
+              name="exec-mode"
+              value="bulk"
+              checked={executionMode === 'bulk'}
+              onChange={() => setExecutionMode('bulk')}
+              className="accent-blue-500"
+            />
+            Bulk
+          </label>
+        </div>
+
         <div className="flex items-center gap-1 ml-2">
           <button
             type="button"
@@ -242,19 +282,25 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
           </button>
         </div>
 
-        <label className="flex items-center gap-1 text-xs text-slate-600 ml-auto cursor-pointer">
+        <label
+          className={`flex items-center gap-1 text-xs ml-auto ${
+            executionMode === 'bulk' ? 'text-slate-400 cursor-not-allowed' : 'text-slate-600 cursor-pointer'
+          }`}
+          title={executionMode === 'bulk' ? 'Bulk は常に全件取得するため件数制限は無効です' : undefined}
+        >
           <input
             type="checkbox"
             checked={fetchAll}
             onChange={e => setTabFetchAll(e.target.checked)}
+            disabled={executionMode === 'bulk'}
             className="accent-blue-500"
           />
           件数制限を無効にして全件取得
-          {fetchAll && <span className="text-yellow-600 font-medium">（大量データに注意）</span>}
+          {fetchAll && executionMode !== 'bulk' && <span className="text-yellow-600 font-medium">（大量データに注意）</span>}
         </label>
 
         <span className="text-xs text-slate-400">
-          上限: {fetchAll ? '無制限' : `${maxRows.toLocaleString()}件`}
+          上限: {executionMode === 'bulk' ? '全件 (Bulk)' : fetchAll ? '無制限' : `${maxRows.toLocaleString()}件`}
         </span>
       </div>
 

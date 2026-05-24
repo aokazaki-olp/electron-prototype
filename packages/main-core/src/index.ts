@@ -53,6 +53,7 @@ export {
   listSObjects,
   describeObject,
   query,
+  bulkQuery,
   createRecord,
   updateRecord,
   deleteRecord,

@@ -140,6 +140,7 @@ export const IPC = {
   LIST_SOBJECTS: 'sf:list-sobjects',
   DESCRIBE_OBJECT: 'sf:describe-object',
   QUERY: 'sf:query',
+  BULK_QUERY: 'sf:bulk-query',
 
   // SF API（書き込み — readwriteモード + writeSession有効時のみ）
   CREATE_RECORD: 'sf:create-record',
@@ -193,6 +194,8 @@ export interface SalesforceExplorerApi {
   listSObjects(): Promise<SObjectSummary[]>;
   describeObject(name: string): Promise<SObjectDescribe>;
   query(soql: string, maxRows: number): Promise<QueryResult>;
+  /** Bulk API v2 経由で SOQL を全件取得する。Bulk 特性上、結果は常に全件（maxRows なし）。 */
+  bulkQuery(soql: string): Promise<QueryResult>;
 
   // SF API（書き込み）
   createRecord(objectName: string, fields: Record<string, unknown>): Promise<string>;
@@ -250,7 +253,7 @@ export const EXPECTED_API_KEYS = {
   explorer: [
     'loadSettings', 'saveSettings', 'loadProfiles', 'saveProfile', 'deleteProfile',
     'startOAuth', 'reauthForWrite', 'disconnect', 'getAuthState',
-    'listSObjects', 'describeObject', 'query',
+    'listSObjects', 'describeObject', 'query', 'bulkQuery',
     'createRecord', 'updateRecord', 'deleteRecord',
     'saveSoqlFile', 'openSoqlFile',
     'loadTabs', 'saveTabs',

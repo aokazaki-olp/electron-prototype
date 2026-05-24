@@ -337,6 +337,78 @@ export const query = async (
 };
 
 // ============================================================================
+// Bulk API v2 Query
+// ============================================================================
+
+const BULK_QUERY_TIMEOUT_MS = 10 * 60 * 1000; // 10 分
+const BULK_QUERY_POLL_INTERVAL_MS = 5_000;
+
+/**
+ * SOQL クエリを Bulk API v2 経由で全件取得する。大量レコード or API call 節約用途向け。
+ *
+ * Bulk は処理開始まで数十秒〜数分の overhead があるため、〜1 万件程度は REST `query()` の方が速い。
+ * Bulk が向くのは 5 万件超や、同一クエリを繰り返す開発フロー (API call が REST の 1/10 程度に節約)。
+ *
+ * 戻り値の records は CSV パース結果。Bulk API は関係参照を `Account.Name` のようにドット記法カラムで
+ * 返すため、REST 経路の flattenRecord 相当の処理は不要。値はすべて string 型になる点に注意。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param soql - 実行する SOQL 文字列
+ * @returns 取得結果（done は常に true、totalSize は SF の numberRecordsProcessed）
+ * @throws {Error} 未接続、Bulk job が JobComplete 以外で終了、または timeout の場合（メッセージに job ID 含む）
+ */
+export const bulkQuery = async (
+  profileId: string,
+  soql: string,
+): Promise<QueryResult> => {
+  const baseClient = getClient(profileId);
+  const bulk = SfPlugins.bulkQuery(baseClient);
+
+  const job = await bulk.createJob({ operation: 'query', query: soql });
+  const jobId = job.id;
+  log.info(`[SF] Bulk job 作成: id=${jobId}`);
+
+  try {
+    const completed = await bulk.waitForCompletion(jobId, {
+      timeoutMs: BULK_QUERY_TIMEOUT_MS,
+      intervalMs: BULK_QUERY_POLL_INTERVAL_MS,
+    });
+
+    if (completed.state !== 'JobComplete') {
+      throw new Error(`Bulk job ${jobId} が ${completed.state} 状態で終了しました`);
+    }
+
+    const csv = await bulk.getResultsParallel(jobId);
+    // plugin の Utils は内部で csv-parse/sync を呼ぶ。CSV の値はすべて string になる。
+    const records: Record<string, unknown>[] = SfPlugins.Utils.csvToRecords(csv);
+    const totalSize = completed.numberRecordsProcessed ?? records.length;
+
+    log.info(`[SF] Bulk クエリ完了: ${records.length}件取得 (job=${jobId}, totalSize=${totalSize})`);
+
+    return {
+      totalSize,
+      done: true,
+      records,
+      fetchedCount: records.length,
+    };
+  } catch (e) {
+    // 既に job ID prefix 付き message に整形済みなら二重ラップしない
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes(`Bulk job ${jobId}`)) {
+      throw e;
+    }
+    throw new Error(`Bulk job ${jobId} が失敗しました: ${msg}`);
+  } finally {
+    // best-effort cleanup (失敗は warn のみで握りつぶす)
+    try {
+      await bulk.deleteJob(jobId);
+    } catch (e) {
+      log.warn(`[SF] Bulk job ${jobId} の削除に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+};
+
+// ============================================================================
 // 書き込み系（readwrite + writeSession 有効時のみ）
 // ============================================================================
 

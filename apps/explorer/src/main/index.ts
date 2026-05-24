@@ -29,6 +29,7 @@ import {
   listSObjects,
   describeObject,
   query,
+  bulkQuery,
   createRecord,
   updateRecord,
   deleteRecord,
@@ -405,6 +406,21 @@ const registerIpcHandlers = (): void => {
       return { totalSize: 0, done: true, records: [], fetchedCount: 0 };
     }
     return query(requireCurrentProfile(), soql, maxRows);
+  });
+
+  handle(IPC.BULK_QUERY, async (soql) => {
+    assertString(soql);
+    if (isTestMode && !testMock.useRealApi) {
+      // テストモードでは REST と同じ testMock を使う（フロー検証目的）
+      if (testMock.queryError != null) {
+        throw new Error(testMock.queryError);
+      }
+      if (testMock.queryResult != null) {
+        return testMock.queryResult;
+      }
+      return { totalSize: 0, done: true, records: [], fetchedCount: 0 };
+    }
+    return bulkQuery(requireCurrentProfile(), soql);
   });
 
   // SF API（書き込み）

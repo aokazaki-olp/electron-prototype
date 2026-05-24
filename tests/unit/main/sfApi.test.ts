@@ -24,6 +24,9 @@ const { mockGet, mockPost, mockPatch, mockDelete, mockClient, mockGetProfile } =
     const methods = plugin(mockClient);
     return { ...mockClient, ...methods };
   };
+  // bulkQuery plugin が getResults 内で client.extend(decorator) を使うため、
+  // decorator は捨てて mockClient 自身を返す（Sforce-Locator capture は単一ページテストでは不要）
+  mockClient.extend = () => mockClient;
   const mockGetProfile = vi.fn();
   return { mockGet, mockPost, mockPatch, mockDelete, mockClient, mockGetProfile };
 });
@@ -56,6 +59,7 @@ vi.mock('../../../packages/main-core/src/logger.js', () => ({
 
 import {
   query,
+  bulkQuery,
   clearDescribeCache,
   markWriteSession,
   clearWriteSession,
@@ -393,6 +397,89 @@ describe('query — ページング', () => {
     mockGet.mockResolvedValue({ done: true, records: [] });
     const result = await query(PROFILE_ID, 'SELECT ...', 0);
     expect(result.totalSize).toBe(0);
+  });
+});
+
+// ============================================================
+// bulkQuery — Bulk API v2 経由の全件取得
+// ============================================================
+
+describe('bulkQuery', () => {
+  beforeEach(() => {
+    mockGetProfile.mockReturnValue(makeProfile({ id: PROFILE_ID }));
+  });
+
+  it('createJob → waitForCompletion → getResults → deleteJob の順で動作し parsed records を返す', async () => {
+    // createJob → ジョブ作成レスポンス（state=UploadComplete）
+    mockPost.mockResolvedValueOnce({
+      id: 'job-001',
+      state: 'UploadComplete',
+      operation: 'query',
+      query: 'SELECT Id, Name FROM Account',
+    });
+    // waitForCompletion 1 回目で JobComplete を返す（即時完了）
+    mockGet.mockResolvedValueOnce({
+      id: 'job-001',
+      state: 'JobComplete',
+      numberRecordsProcessed: 2,
+      operation: 'query',
+      query: 'SELECT Id, Name FROM Account',
+    });
+    // getResults → CSV（ヘッダー行付き）
+    mockGet.mockResolvedValueOnce('Id,Name\n001,Acme\n002,Globex\n');
+    // deleteJob cleanup
+    mockDelete.mockResolvedValueOnce(undefined);
+
+    const result = await bulkQuery(PROFILE_ID, 'SELECT Id, Name FROM Account');
+
+    expect(result).toEqual({
+      totalSize: 2,
+      done: true,
+      fetchedCount: 2,
+      records: [
+        { Id: '001', Name: 'Acme' },
+        { Id: '002', Name: 'Globex' },
+      ],
+    });
+    // createJob が /jobs/query に飛んだ
+    expect(mockPost).toHaveBeenCalledWith('/jobs/query', {
+      operation: 'query',
+      query: 'SELECT Id, Name FROM Account',
+    });
+    // クリーンアップで deleteJob が呼ばれた
+    expect(mockDelete).toHaveBeenCalledWith('/jobs/query/job-001');
+  });
+
+  it('Bulk job が Failed 状態で終わると job ID を含むエラーを throw、deleteJob も呼ばれる', async () => {
+    mockPost.mockResolvedValueOnce({ id: 'job-002', state: 'UploadComplete' });
+    mockGet.mockResolvedValueOnce({
+      id: 'job-002',
+      state: 'Failed',
+      operation: 'query',
+      query: 'SELECT Id FROM BadObject',
+    });
+    mockDelete.mockResolvedValueOnce(undefined);
+
+    await expect(bulkQuery(PROFILE_ID, 'SELECT Id FROM BadObject')).rejects.toThrow(
+      'Bulk job job-002 が Failed 状態で終了しました',
+    );
+    // Failed でも finally で deleteJob が呼ばれる
+    expect(mockDelete).toHaveBeenCalledWith('/jobs/query/job-002');
+  });
+
+  it('deleteJob の失敗は warn にとどめ throw しない（best-effort cleanup）', async () => {
+    mockPost.mockResolvedValueOnce({ id: 'job-003', state: 'UploadComplete' });
+    mockGet.mockResolvedValueOnce({
+      id: 'job-003',
+      state: 'JobComplete',
+      numberRecordsProcessed: 1,
+    });
+    mockGet.mockResolvedValueOnce('Id\n001\n');
+    mockDelete.mockRejectedValueOnce(new Error('delete failed'));
+
+    // 正常系の戻り値が返り、cleanup の失敗は呼び出し元に伝わらない
+    const result = await bulkQuery(PROFILE_ID, 'SELECT Id FROM Account');
+    expect(result.fetchedCount).toBe(1);
   });
 });
 
