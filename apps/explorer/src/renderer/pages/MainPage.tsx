@@ -218,16 +218,16 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
         {/* 左ペイン: sObjectブラウザ */}
         <Panel
           id="main-left"
-          defaultSize={initialPaneSizes.leftPanel}
-          minSize={12}
-          maxSize={40}
+          defaultSize={`${initialPaneSizes.leftPanel}%`}
+          minSize="8%"
+          maxSize="60%"
           className="overflow-hidden"
         >
           <SObjectBrowser />
         </Panel>
 
         <PanelResizeHandle
-          className="w-1 bg-slate-200 dark:bg-slate-700 hover:bg-blue-300 dark:hover:bg-blue-500 active:bg-blue-400 transition-colors"
+          className="w-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-blue-400 dark:hover:bg-blue-500 active:bg-blue-500 transition-colors"
           aria-label="左ペインの幅を調整"
         />
 
@@ -241,16 +241,16 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
             {/* SOQLエディタ */}
             <Panel
               id="main-soql"
-              defaultSize={initialPaneSizes.soqlPanel}
-              minSize={15}
-              maxSize={85}
+              defaultSize={`${initialPaneSizes.soqlPanel}%`}
+              minSize="10%"
+              maxSize="90%"
               className="overflow-hidden"
             >
               <SoqlEditor settings={settings} />
             </Panel>
 
             <PanelResizeHandle
-              className="h-1 bg-slate-200 dark:bg-slate-700 hover:bg-blue-300 dark:hover:bg-blue-500 active:bg-blue-400 transition-colors"
+              className="h-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-blue-400 dark:hover:bg-blue-500 active:bg-blue-500 transition-colors"
               aria-label="エディタと結果の高さを調整"
             />
 
