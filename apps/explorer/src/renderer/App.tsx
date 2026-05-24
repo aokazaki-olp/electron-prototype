@@ -8,7 +8,10 @@ import type { SoqlTab } from './store.js';
 import type { LogEntry } from '@app/ipc-contract';
 
 const App = (): JSX.Element => {
-  const { authState, activeProfileId, setAuthState, setActiveProfileId, appendLog, tabs, activeTabId, loadTabs } = useAppStore(
+  const {
+    authState, activeProfileId, setAuthState, setActiveProfileId, appendLog,
+    tabs, activeTabId, loadTabs, setSettings,
+  } = useAppStore(
     useShallow(s => ({
       authState: s.authState,
       activeProfileId: s.activeProfileId,
@@ -18,6 +21,7 @@ const App = (): JSX.Element => {
       tabs: s.tabs,
       activeTabId: s.activeTabId,
       loadTabs: s.loadTabs,
+      setSettings: s.setSettings,
     }))
   );
   const [showSettings, setShowSettings] = useState(false);
@@ -33,14 +37,17 @@ const App = (): JSX.Element => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 起動時: プロファイル接続試行 + タブ復元（main プロセスから IPC で取得）
+  // 起動時: プロファイル接続試行 + タブ復元 + 設定読み込み（main プロセスから IPC で取得）
+  // 設定 (paneSizes 等) はマウント直後に必要なため、SettingsPage を開かない場合でも先読みする。
   useEffect(() => {
     void (async () => {
       try {
-        const [profiles, tabsState] = await Promise.all([
+        const [profiles, tabsState, loadedSettings] = await Promise.all([
           window.sfx.loadProfiles(),
           window.sfx.loadTabs(),
+          window.sfx.loadSettings(),
         ]);
+        setSettings(loadedSettings);
         if (tabsState && tabsState.tabs.length > 0) {
           const restored: SoqlTab[] = tabsState.tabs.map(t => ({
             id: t.id,

@@ -6,7 +6,11 @@ import { vi } from 'vitest';
 import type { SalesforceExplorerApi } from '@app/ipc-contract';
 
 export const makeMockSfx = (): SalesforceExplorerApi => ({
-  loadSettings: vi.fn().mockResolvedValue({ defaultMaxRows: 2000, logBufferSize: 1000 }),
+  loadSettings: vi.fn().mockResolvedValue({
+    defaultMaxRows: 2000,
+    logBufferSize: 1000,
+    paneSizes: { leftPanel: 18, soqlPanel: 40 },
+  }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
   loadProfiles: vi.fn().mockResolvedValue([]),
   saveProfile: vi.fn().mockResolvedValue(undefined),

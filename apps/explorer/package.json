@@ -13,8 +13,9 @@
     "gen-builder-yml": "cross-env BUILD_TARGET=explorer node ../../scripts/gen-builder-yml.mjs"
   },
   "dependencies": {
-    "@app/main-core": "*",
     "@app/ipc-contract": "*",
-    "@app/libs": "*"
+    "@app/libs": "*",
+    "@app/main-core": "*",
+    "react-resizable-panels": "^4.11.2"
   }
 }

@@ -21,10 +21,22 @@ export interface SfConnectionProfile {
   writeSessionTimeoutMin: number;
 }
 
+/**
+ * ペインサイズ（パーセンテージ）。`react-resizable-panels` の onLayout で取得した値を保持する。
+ * - `leftPanel`: 左ペイン (SObjectBrowser) の幅 (0–100)
+ * - `soqlPanel`: 中央上下分割の上 (SoqlEditor) の高さ (0–100)
+ */
+export interface PaneSizes {
+  leftPanel: number;
+  soqlPanel: number;
+}
+
 export interface AppSettings {
   defaultMaxRows: number;
   /** LogViewer が保持するログエントリの上限件数。`0` で無制限。 */
   logBufferSize: number;
+  /** メインレイアウトのペインサイズ。ユーザーがドラッグした結果を永続化する。 */
+  paneSizes: PaneSizes;
 }
 
 // ============================================================================

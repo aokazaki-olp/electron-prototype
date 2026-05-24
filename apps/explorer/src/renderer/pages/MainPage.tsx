@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { Group as PanelGroup, Panel, Separator as PanelResizeHandle, type Layout } from 'react-resizable-panels';
 import { Settings, LogOut } from 'lucide-react';
 import { SObjectBrowser } from '../components/SObjectBrowser.js';
 import { SoqlEditor } from '../components/SoqlEditor.js';
@@ -7,6 +8,10 @@ import { ResultTable } from '../components/ResultTable.js';
 import { LogViewer } from '../components/LogViewer.js';
 import { showToast } from '../components/Toast.js';
 import { useAppStore } from '../store.js';
+import type { AppSettings, PaneSizes } from '@app/ipc-contract';
+
+const DEFAULT_PANE_SIZES: PaneSizes = { leftPanel: 18, soqlPanel: 40 };
+const SAVE_DEBOUNCE_MS = 300;
 
 type BottomTab = 'result' | 'log';
 
@@ -49,11 +54,12 @@ interface Props {
 }
 
 export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
-  const { profiles, activeProfileId, settings, tabs, activeTabId, setSoql } = useAppStore(
+  const { profiles, activeProfileId, settings, setSettings, tabs, activeTabId, setSoql } = useAppStore(
     useShallow(s => ({
       profiles: s.profiles,
       activeProfileId: s.activeProfileId,
       settings: s.settings,
+      setSettings: s.setSettings,
       tabs: s.tabs,
       activeTabId: s.activeTabId,
       setSoql: s.setSoql,
@@ -66,6 +72,51 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
   useEffect(() => {
     if (result) setBottomTab('result');
   }, [result]);
+
+  // ペインサイズ: settings.paneSizes から初期値を取り、ドラッグ後 IPC で永続化する。
+  // defaultSize は Panel のマウント時にだけ参照されるため、初回レンダ時点で settings が
+  // null だと既定値で固定されてしまう。App.tsx で起動時に必ず先読みする前提。
+  const initialPaneSizes = settings?.paneSizes ?? DEFAULT_PANE_SIZES;
+  // ref で最新値を保持し、horizontal/vertical の片方が変わっても他方を保持できるようにする
+  const paneSizesRef = useRef<PaneSizes>(initialPaneSizes);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settingsRef = useRef<AppSettings | null>(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+
+  const schedulePersist = useCallback((next: PaneSizes) => {
+    paneSizesRef.current = next;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const current = settingsRef.current;
+      if (!current) return;
+      const updated: AppSettings = { ...current, paneSizes: next };
+      setSettings(updated);
+      // 保存失敗は致命的でない (起動時に再ロードできる)。toast を出すほどでもないのでログのみ。
+      void window.sfx.saveSettings(updated).catch(() => {
+        window.sfx.rendererLog('warn', 'ペインサイズの保存に失敗しました');
+      });
+    }, SAVE_DEBOUNCE_MS);
+  }, [setSettings]);
+
+  // unmount 時に pending save を flush
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
+  // react-resizable-panels v4 の onLayoutChanged は Panel id をキーとしたサイズマップを返す
+  const handleHorizontalLayout = useCallback((layout: Layout) => {
+    const leftPanel = layout['main-left'];
+    if (typeof leftPanel !== 'number') return;
+    schedulePersist({ ...paneSizesRef.current, leftPanel });
+  }, [schedulePersist]);
+
+  const handleVerticalLayout = useCallback((layout: Layout) => {
+    const soqlPanel = layout['main-soql'];
+    if (typeof soqlPanel !== 'number') return;
+    schedulePersist({ ...paneSizesRef.current, soqlPanel });
+  }, [schedulePersist]);
 
   const activeProfile = profiles.find(p => p.id === activeProfileId);
 
@@ -146,50 +197,84 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
         </div>
       </header>
 
-      {/* メインコンテンツ */}
-      <div className="flex flex-1 overflow-hidden">
+      {/* メインコンテンツ: 左右 + 中央上下の 2 段 PanelGroup */}
+      <PanelGroup
+        orientation="horizontal"
+        onLayoutChanged={handleHorizontalLayout}
+        className="flex-1 overflow-hidden"
+      >
         {/* 左ペイン: sObjectブラウザ */}
-        <div className="w-64 flex-shrink-0 overflow-hidden">
+        <Panel
+          id="main-left"
+          defaultSize={initialPaneSizes.leftPanel}
+          minSize={12}
+          maxSize={40}
+          className="overflow-hidden"
+        >
           <SObjectBrowser />
-        </div>
+        </Panel>
 
-        {/* 右ペイン */}
-        <div className="flex flex-col flex-1 overflow-hidden">
-          {/* SOQLエディタ (上部 40%) */}
-          <div style={{ height: '40%' }} className="flex-shrink-0 overflow-hidden">
-            <SoqlEditor settings={settings} />
-          </div>
+        <PanelResizeHandle
+          className="w-1 bg-slate-200 hover:bg-blue-300 active:bg-blue-400 transition-colors"
+          aria-label="左ペインの幅を調整"
+        />
 
-          {/* 下部タブ */}
-          <div className="flex-1 overflow-hidden flex flex-col">
-            {/* タブバー */}
-            <div role="tablist" className="flex items-center border-b border-slate-200 bg-slate-50 flex-shrink-0">
-              {BOTTOM_TABS.map(key => (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={bottomTab === key}
-                  onClick={() => setBottomTab(key)}
-                  className={`px-4 py-1.5 text-xs font-medium border-b-2 ${
-                    bottomTab === key
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {tabLabel(key)}
-                </button>
-              ))}
-            </div>
+        {/* 右ペイン: SOQL エディタと結果/ログ */}
+        <Panel id="main-right" className="overflow-hidden">
+          <PanelGroup
+            orientation="vertical"
+            onLayoutChanged={handleVerticalLayout}
+            className="h-full"
+          >
+            {/* SOQLエディタ */}
+            <Panel
+              id="main-soql"
+              defaultSize={initialPaneSizes.soqlPanel}
+              minSize={15}
+              maxSize={85}
+              className="overflow-hidden"
+            >
+              <SoqlEditor settings={settings} />
+            </Panel>
 
-            {/* タブコンテンツ */}
-            <div className="flex-1 overflow-hidden">
-              {bottomTab === 'result' && <ResultTable result={result} onSnippetClick={setSoql} />}
-              {bottomTab === 'log' && <LogViewer />}
-            </div>
-          </div>
-        </div>
-      </div>
+            <PanelResizeHandle
+              className="h-1 bg-slate-200 hover:bg-blue-300 active:bg-blue-400 transition-colors"
+              aria-label="エディタと結果の高さを調整"
+            />
+
+            {/* 下部タブ */}
+            <Panel id="main-bottom" className="overflow-hidden">
+              <div className="flex flex-col h-full">
+                {/* タブバー */}
+                <div role="tablist" className="flex items-center border-b border-slate-200 bg-slate-50 flex-shrink-0">
+                  {BOTTOM_TABS.map(key => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={bottomTab === key}
+                      onClick={() => setBottomTab(key)}
+                      className={`px-4 py-1.5 text-xs font-medium border-b-2 ${
+                        bottomTab === key
+                          ? 'border-blue-600 text-blue-600'
+                          : 'border-transparent text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      {tabLabel(key)}
+                    </button>
+                  ))}
+                </div>
+
+                {/* タブコンテンツ */}
+                <div className="flex-1 overflow-hidden">
+                  {bottomTab === 'result' && <ResultTable result={result} onSnippetClick={setSoql} />}
+                  {bottomTab === 'log' && <LogViewer />}
+                </div>
+              </div>
+            </Panel>
+          </PanelGroup>
+        </Panel>
+      </PanelGroup>
     </div>
   );
 };

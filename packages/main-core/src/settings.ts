@@ -21,6 +21,10 @@ interface StoreSchema {
 const DEFAULT_SETTINGS: AppSettings = {
   defaultMaxRows: 2000,
   logBufferSize: 1000,
+  paneSizes: {
+    leftPanel: 18,
+    soqlPanel: 40,
+  },
 };
 
 const store = new Store<StoreSchema>({

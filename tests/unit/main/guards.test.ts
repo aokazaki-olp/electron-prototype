@@ -36,20 +36,30 @@ describe('isLogLevel / assertLogLevel', () => {
 });
 
 describe('assertAppSettings', () => {
+  const validPaneSizes = { leftPanel: 18, soqlPanel: 40 };
+  const validBase = { defaultMaxRows: 2000, logBufferSize: 1000, paneSizes: validPaneSizes };
+
   it('正常な settings を通す', () => {
-    expect(() => assertAppSettings({ defaultMaxRows: 2000, logBufferSize: 1000 })).not.toThrow();
+    expect(() => assertAppSettings(validBase)).not.toThrow();
   });
   it('defaultMaxRows が無いと TypeError', () => {
-    expect(() => assertAppSettings({ logBufferSize: 1000 })).toThrow(TypeError);
+    expect(() => assertAppSettings({ logBufferSize: 1000, paneSizes: validPaneSizes })).toThrow(TypeError);
   });
   it('logBufferSize が無いと TypeError', () => {
-    expect(() => assertAppSettings({ defaultMaxRows: 2000 })).toThrow(TypeError);
+    expect(() => assertAppSettings({ defaultMaxRows: 2000, paneSizes: validPaneSizes })).toThrow(TypeError);
   });
   it('defaultMaxRows が非数値だと TypeError', () => {
-    expect(() => assertAppSettings({ defaultMaxRows: '2000', logBufferSize: 1000 })).toThrow(TypeError);
+    expect(() => assertAppSettings({ ...validBase, defaultMaxRows: '2000' })).toThrow(TypeError);
   });
   it('logBufferSize が非数値だと TypeError', () => {
-    expect(() => assertAppSettings({ defaultMaxRows: 2000, logBufferSize: '1000' })).toThrow(TypeError);
+    expect(() => assertAppSettings({ ...validBase, logBufferSize: '1000' })).toThrow(TypeError);
+  });
+  it('paneSizes が無いと TypeError', () => {
+    expect(() => assertAppSettings({ defaultMaxRows: 2000, logBufferSize: 1000 })).toThrow(TypeError);
+  });
+  it('paneSizes の各軸が数値でないと TypeError', () => {
+    expect(() => assertAppSettings({ ...validBase, paneSizes: { leftPanel: '18', soqlPanel: 40 } })).toThrow(TypeError);
+    expect(() => assertAppSettings({ ...validBase, paneSizes: { leftPanel: 18 } })).toThrow(TypeError);
   });
   it('null / array / プリミティブを弾く', () => {
     expect(() => assertAppSettings(null)).toThrow(TypeError);

@@ -51,8 +51,14 @@ export const assertLogLevel: (v: unknown) => asserts v is LogLevel = (v) => {
 // AppSettings
 // ============================================================================
 
+const isPaneSizes = (v: unknown): v is AppSettings['paneSizes'] =>
+  isPlainObject(v) && isNumber(v['leftPanel']) && isNumber(v['soqlPanel']);
+
 const isAppSettings = (v: unknown): v is AppSettings =>
-  isPlainObject(v) && isNumber(v['defaultMaxRows']) && isNumber(v['logBufferSize']);
+  isPlainObject(v)
+  && isNumber(v['defaultMaxRows'])
+  && isNumber(v['logBufferSize'])
+  && isPaneSizes(v['paneSizes']);
 
 /**
  * `unknown` が [[AppSettings]] であることを assert する。
