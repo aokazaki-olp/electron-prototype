@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { Download, AlertCircle } from 'lucide-react';
 import { useAppStore } from '../store.js';
 import type { LogLevel } from '@app/ipc-contract';
 
@@ -29,10 +30,21 @@ const LogViewerInner = (): JSX.Element => {
   });
   const [search, setSearch] = useState('');
   const [autoScroll, setAutoScroll] = useState(true);
+  const [exportError, setExportError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const toggleLevel = (level: LogLevel) => {
     setFilter(f => ({ ...f, [level]: !f[level] }));
+  };
+
+  const handleExport = async () => {
+    setExportError(null);
+    try {
+      await window.sfx.exportLogFile(logs);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setExportError(`ログ保存に失敗しました: ${msg}`);
+    }
   };
 
   const filtered = useMemo(() => {
@@ -99,12 +111,29 @@ const LogViewerInner = (): JSX.Element => {
         </label>
         <button
           type="button"
+          onClick={handleExport}
+          disabled={logs.length === 0}
+          className="flex items-center gap-1 px-2 py-0.5 bg-slate-700 text-slate-300 rounded hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed"
+          title="現在のログをファイルに保存"
+        >
+          <Download size={11} /> 保存
+        </button>
+        <button
+          type="button"
           onClick={() => setLogs([])}
           className="px-2 py-0.5 bg-slate-700 text-slate-300 rounded hover:bg-slate-600"
         >
           クリア
         </button>
       </div>
+
+      {/* エクスポートエラー */}
+      {exportError && (
+        <div role="alert" className="flex items-start gap-1.5 px-2 py-1 text-xs text-red-300 bg-red-900/40 border-b border-red-800">
+          <AlertCircle size={11} className="flex-shrink-0 mt-0.5" />
+          <span>{exportError}</span>
+        </div>
+      )}
 
       {/* ログ一覧（仮想化） */}
       <div className="flex-1 overflow-y-auto" ref={scrollRef}>

@@ -20,6 +20,7 @@ interface StoreSchema {
 
 const DEFAULT_SETTINGS: AppSettings = {
   defaultMaxRows: 2000,
+  logBufferSize: 1000,
 };
 
 const store = new Store<StoreSchema>({
@@ -41,8 +42,12 @@ const store = new Store<StoreSchema>({
  *
  * @returns 現在のアプリ設定
  */
-export const loadSettings = (): AppSettings =>
-  store.get('settings', DEFAULT_SETTINGS);
+export const loadSettings = (): AppSettings => {
+  // 過去バージョンの store には新しいフィールド (例: logBufferSize) が無い可能性があるため、
+  // DEFAULT_SETTINGS と merge して欠けたキーを補完する。schema migration の代替策。
+  const stored = store.get('settings', DEFAULT_SETTINGS);
+  return { ...DEFAULT_SETTINGS, ...stored };
+};
 
 /**
  * アプリ設定を永続化する（全体を上書き）。

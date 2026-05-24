@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 import type { SalesforceExplorerApi } from '@app/ipc-contract';
 
 export const makeMockSfx = (): SalesforceExplorerApi => ({
-  loadSettings: vi.fn().mockResolvedValue({ defaultMaxRows: 2000 }),
+  loadSettings: vi.fn().mockResolvedValue({ defaultMaxRows: 2000, logBufferSize: 1000 }),
   saveSettings: vi.fn().mockResolvedValue(undefined),
   loadProfiles: vi.fn().mockResolvedValue([]),
   saveProfile: vi.fn().mockResolvedValue(undefined),
@@ -24,6 +24,9 @@ export const makeMockSfx = (): SalesforceExplorerApi => ({
   query: vi.fn().mockResolvedValue({
     totalSize: 0, done: true, records: [], fetchedCount: 0,
   }),
+  bulkQuery: vi.fn().mockResolvedValue({
+    totalSize: 0, done: true, records: [], fetchedCount: 0,
+  }),
 
   createRecord: vi.fn().mockResolvedValue('new-id'),
   updateRecord: vi.fn().mockResolvedValue(undefined),
@@ -38,6 +41,7 @@ export const makeMockSfx = (): SalesforceExplorerApi => ({
   exportCsv: vi.fn().mockResolvedValue(undefined),
   exportQueryExcel: vi.fn().mockResolvedValue(undefined),
   exportObjectDefinition: vi.fn().mockResolvedValue(undefined),
+  exportLogFile: vi.fn().mockResolvedValue(undefined),
 
   getRecentLogs: vi.fn().mockResolvedValue([]),
   onLogEntry: vi.fn().mockReturnValue(() => {}),

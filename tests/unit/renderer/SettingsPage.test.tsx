@@ -13,7 +13,7 @@ import { makeProfile } from '../../fixtures/contract.js';
 
 const resetStore = () => {
   useAppStore.setState({
-    settings: { defaultMaxRows: 2000 },
+    settings: { defaultMaxRows: 2000, logBufferSize: 1000 },
     profiles: [],
     authState: 'disconnected',
     activeProfileId: null,
@@ -31,7 +31,7 @@ beforeEach(() => {
 describe('SettingsPage — レンダリング', () => {
   it('プロファイル 0 件のときガイダンスを表示', async () => {
     (window.sfx.loadProfiles as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (window.sfx.loadSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ defaultMaxRows: 2000 });
+    (window.sfx.loadSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ defaultMaxRows: 2000, logBufferSize: 1000 });
 
     await act(async () => {
       render(<SettingsPage onConnect={vi.fn()} />);
@@ -43,7 +43,7 @@ describe('SettingsPage — レンダリング', () => {
     const profiles = [makeProfile({ id: 'a', name: 'Prod' }), makeProfile({ id: 'b', name: 'Sandbox' })];
     useAppStore.setState({ profiles });
     (window.sfx.loadProfiles as ReturnType<typeof vi.fn>).mockResolvedValue(profiles);
-    (window.sfx.loadSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ defaultMaxRows: 2000 });
+    (window.sfx.loadSettings as ReturnType<typeof vi.fn>).mockResolvedValue({ defaultMaxRows: 2000, logBufferSize: 1000 });
 
     await act(async () => {
       render(<SettingsPage onConnect={vi.fn()} />);

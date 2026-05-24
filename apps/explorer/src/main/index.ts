@@ -46,6 +46,7 @@ import {
   IPC,
   assertAppSettings,
   assertCsvExportOptions,
+  assertLogEntryArray,
   assertLogLevel,
   assertNumber,
   assertProfile,
@@ -460,6 +461,26 @@ const registerIpcHandlers = (): void => {
   handle(IPC.EXPORT_OBJECT_DEFINITION, async (objectName) => {
     assertString(objectName);
     return exportObjectDefinition(requireCurrentProfile(), objectName);
+  });
+
+  handle(IPC.EXPORT_LOG_FILE, async (logs) => {
+    assertLogEntryArray(logs);
+    // ファイル名: sfx-log-YYYYMMDD-HHmmss.log（local timezone）
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const { filePath, canceled } = await dialog.showSaveDialog({
+      defaultPath: `sfx-log-${ts}.log`,
+      filters: [
+        { name: 'ログファイル', extensions: ['log', 'txt'] },
+        { name: 'すべてのファイル', extensions: ['*'] },
+      ],
+    });
+    if (canceled || !filePath) return;
+    const text = logs
+      .map(l => `[${l.date}] [${l.level.toUpperCase()}] ${l.text}`)
+      .join('\n');
+    await writeFile(filePath, text, 'utf-8');
   });
 
   // SOQLファイル

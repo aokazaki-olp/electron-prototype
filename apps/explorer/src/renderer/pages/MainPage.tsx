@@ -11,19 +11,51 @@ type BottomTab = 'result' | 'log';
 
 const BOTTOM_TABS: readonly BottomTab[] = ['result', 'log'];
 
+type Environment = 'production' | 'sandbox' | 'scratch' | 'custom';
+
+/**
+ * loginUrl からおおまかな org 環境種別を推定する。
+ * - login.salesforce.com → production
+ * - test.salesforce.com → sandbox
+ * - *.sandbox.my.salesforce.com → sandbox (My Domain 経由)
+ * - *.scratch.my.salesforce.com / *.develop.my.salesforce.com → scratch
+ * - それ以外 → custom (My Domain ベースの本番が多いが断定できない)
+ */
+const detectEnvironment = (loginUrl: string): Environment => {
+  try {
+    const host = new URL(loginUrl).hostname.toLowerCase();
+    if (host === 'login.salesforce.com') return 'production';
+    if (host === 'test.salesforce.com') return 'sandbox';
+    if (host.endsWith('.sandbox.my.salesforce.com')) return 'sandbox';
+    if (host.endsWith('.scratch.my.salesforce.com')) return 'scratch';
+    if (host.endsWith('.develop.my.salesforce.com')) return 'scratch';
+    return 'custom';
+  } catch {
+    return 'custom';
+  }
+};
+
+const ENV_BADGE: Record<Environment, { label: string; className: string }> = {
+  production: { label: 'Production', className: 'bg-red-700 text-red-50 border border-red-500' },
+  sandbox:    { label: 'Sandbox',    className: 'bg-blue-700 text-blue-50 border border-blue-500' },
+  scratch:    { label: 'Scratch',    className: 'bg-purple-700 text-purple-50 border border-purple-500' },
+  custom:     { label: 'My Domain',  className: 'bg-slate-600 text-slate-200 border border-slate-500' },
+};
+
 interface Props {
   onDisconnect: () => void;
   onSettings: () => void;
 }
 
 export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
-  const { profiles, activeProfileId, settings, tabs, activeTabId } = useAppStore(
+  const { profiles, activeProfileId, settings, tabs, activeTabId, setSoql } = useAppStore(
     useShallow(s => ({
       profiles: s.profiles,
       activeProfileId: s.activeProfileId,
       settings: s.settings,
       tabs: s.tabs,
       activeTabId: s.activeTabId,
+      setSoql: s.setSoql,
     }))
   );
   const [bottomTab, setBottomTab] = useState<BottomTab>('result');
@@ -59,21 +91,41 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
     return 'ログ';
   };
 
+  // 書き込み可モードは事故防止が最優先。ヘッダー帯ごと色を切り替えて視認性を上げる。
+  // 通常: slate-800、書き込み可: orange-800（バッジの強調と合わせて二重防御）。
+  const isWriteMode = activeProfile?.mode === 'readwrite';
+  const headerBg = isWriteMode ? 'bg-orange-800' : 'bg-slate-800';
+  const env = activeProfile ? detectEnvironment(activeProfile.loginUrl) : null;
+  const envBadge = env ? ENV_BADGE[env] : null;
+  const buttonHover = isWriteMode ? 'hover:bg-orange-700' : 'hover:bg-slate-700';
+
   return (
     <div className="flex flex-col h-screen bg-white">
-      {/* ヘッダー */}
-      <header className="flex items-center gap-3 px-4 py-2 bg-slate-800 text-white flex-shrink-0">
+      {/* ヘッダー: アプリ名 / org 名 / 環境バッジ / モードバッジ / 設定・切断 */}
+      <header className={`flex items-center gap-3 px-4 py-2 text-white flex-shrink-0 ${headerBg}`}>
         <span className="font-semibold text-sm">Salesforce Explorer</span>
         {activeProfile && (
           <>
             <span className="text-slate-400 text-xs">|</span>
-            <span className="text-sm text-slate-300">{activeProfile.name}</span>
-            <span className={`text-xs px-1.5 py-0.5 rounded ${
-              activeProfile.mode === 'readonly'
-                ? 'bg-slate-600 text-slate-300'
-                : 'bg-orange-900 text-orange-300'
-            }`}>
-              {activeProfile.mode === 'readonly' ? '読み取り専用' : '読み書き'}
+            <span className="text-sm text-slate-100" title={activeProfile.loginUrl}>
+              {activeProfile.name}
+            </span>
+            {envBadge && (
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${envBadge.className}`}
+                title={`接続先: ${activeProfile.loginUrl}`}
+              >
+                {envBadge.label}
+              </span>
+            )}
+            <span
+              className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
+                isWriteMode
+                  ? 'bg-orange-200 text-orange-900 border border-orange-300'
+                  : 'bg-slate-600 text-slate-200 border border-slate-500'
+              }`}
+            >
+              {isWriteMode ? '書き込み可' : '読み取り専用'}
             </span>
           </>
         )}
@@ -81,14 +133,14 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
           <button
             type="button"
             onClick={onSettings}
-            className="flex items-center gap-1 text-xs text-slate-300 hover:text-white px-2 py-1 rounded hover:bg-slate-700"
+            className={`flex items-center gap-1 text-xs text-slate-100 hover:text-white px-2 py-1 rounded ${buttonHover}`}
           >
             <Settings size={13} /> 設定
           </button>
           <button
             type="button"
             onClick={handleDisconnect}
-            className="flex items-center gap-1 text-xs text-slate-300 hover:text-white px-2 py-1 rounded hover:bg-slate-700"
+            className={`flex items-center gap-1 text-xs text-slate-100 hover:text-white px-2 py-1 rounded ${buttonHover}`}
           >
             <LogOut size={13} /> 切断
           </button>
@@ -140,7 +192,7 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
 
             {/* タブコンテンツ */}
             <div className="flex-1 overflow-hidden">
-              {bottomTab === 'result' && <ResultTable result={result} />}
+              {bottomTab === 'result' && <ResultTable result={result} onSnippetClick={setSoql} />}
               {bottomTab === 'log' && <LogViewer />}
             </div>
           </div>

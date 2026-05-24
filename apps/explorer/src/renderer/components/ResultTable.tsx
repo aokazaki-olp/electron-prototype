@@ -14,7 +14,21 @@ import type { QueryResult, CsvExportOptions } from '@app/ipc-contract';
 
 interface Props {
   result: QueryResult | null;
+  /**
+   * 空状態に表示するスニペットをユーザーがクリックしたとき呼ばれる。
+   * `undefined` の場合はスニペット自体を表示しない（テストや組み込み用途）。
+   */
+  onSnippetClick?: (soql: string) => void;
 }
+
+// 空状態のサンプル SOQL。Salesforce 新規ユーザーが「まず1個動かしてみる」体験を作るための導線。
+// 標準オブジェクト中心に選び、どの org でも動く前提で組む。
+const EMPTY_STATE_SNIPPETS: ReadonlyArray<{ label: string; soql: string }> = [
+  { label: 'Account を 10 件', soql: 'SELECT Id, Name FROM Account LIMIT 10' },
+  { label: '今日作成された Lead の件数', soql: 'SELECT COUNT(Id) FROM Lead WHERE CreatedDate = TODAY' },
+  { label: 'オープン中の Opportunity', soql: 'SELECT Id, Name, Owner.Name, Amount, CloseDate FROM Opportunity WHERE IsClosed = false LIMIT 50' },
+  { label: '有効な User', soql: 'SELECT Id, Name, Email FROM User WHERE IsActive = true LIMIT 10' },
+];
 
 const ATTRIBUTES_KEY = 'attributes';
 
@@ -37,7 +51,7 @@ interface ExportDialogState {
   lineEnding: 'CRLF' | 'LF';
 }
 
-export const ResultTable = ({ result }: Props): JSX.Element => {
+export const ResultTable = ({ result, onSnippetClick }: Props): JSX.Element => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilterInput, setGlobalFilterInput] = useState('');
   const [globalFilter, setGlobalFilter] = useState('');
@@ -139,8 +153,25 @@ export const ResultTable = ({ result }: Props): JSX.Element => {
 
   if (!result) {
     return (
-      <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-        SOQLを実行すると結果が表示されます
+      <div className="flex flex-col items-center justify-center h-full text-slate-400 text-sm gap-3 px-6 py-8">
+        <p>SOQLを実行すると結果が表示されます</p>
+        {onSnippetClick && (
+          <div className="flex flex-col gap-1.5 max-w-2xl w-full">
+            <p className="text-xs text-slate-500 mt-3 mb-1">まず試してみる:</p>
+            {EMPTY_STATE_SNIPPETS.map(s => (
+              <button
+                key={s.soql}
+                type="button"
+                onClick={() => onSnippetClick(s.soql)}
+                className="text-left px-3 py-2 bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 rounded transition-colors"
+                title={`エディタにセット: ${s.soql}`}
+              >
+                <span className="block text-xs text-slate-600 mb-0.5">{s.label}</span>
+                <span className="block text-xs font-mono text-slate-700 truncate">{s.soql}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }

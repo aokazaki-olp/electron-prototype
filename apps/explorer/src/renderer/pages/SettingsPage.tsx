@@ -298,8 +298,8 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
             <div className="px-4 py-3 border-b border-slate-200">
               <h2 className="font-semibold text-slate-700">クエリ設定</h2>
             </div>
-            <div className="px-4 py-4">
-              <label className="text-sm text-slate-700">
+            <div className="px-4 py-4 space-y-3">
+              <label className="text-sm text-slate-700 block">
                 デフォルト最大取得件数
                 <select
                   value={settings.defaultMaxRows}
@@ -310,6 +310,19 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
                     <option key={n} value={n}>{n === 0 ? '無制限' : n.toLocaleString()}</option>
                   ))}
                 </select>
+              </label>
+              <label className="text-sm text-slate-700 block">
+                ログの保持件数
+                <select
+                  value={settings.logBufferSize}
+                  onChange={e => saveAppSettings({ logBufferSize: Number(e.target.value) })}
+                  className="ml-3 px-2 py-1 border border-slate-300 rounded text-sm outline-none focus:border-blue-500"
+                >
+                  {[500, 1000, 5000, 10000, 0].map(n => (
+                    <option key={n} value={n}>{n === 0 ? '無制限' : n.toLocaleString()}</option>
+                  ))}
+                </select>
+                <span className="ml-2 text-xs text-slate-400">無制限はメモリに注意</span>
               </label>
             </div>
           </section>

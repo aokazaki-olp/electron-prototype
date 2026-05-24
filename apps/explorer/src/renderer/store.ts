@@ -55,7 +55,12 @@ interface AppStore {
   setSelectedObject: (name: string | null) => void;
   setSobjectsLoading: (v: boolean) => void;
   setSoql: (s: string) => void;
-  setSoqlAndRun: (soql: string) => void;
+  /**
+   * SOQL を active tab に書き込み、実行を trigger する。
+   * `suggestedName` が渡された場合、active tab の name が初期パターン `クエリ N` のときに限り
+   * 自動でリネームする（ユーザーが手で付けた名前は上書きしない）。
+   */
+  setSoqlAndRun: (soql: string, suggestedName?: string) => void;
   setTabFetchAll: (v: boolean) => void;
   setQueryLoading: (v: boolean) => void;
   incrementRunTrigger: () => void;
@@ -96,12 +101,16 @@ export const useAppStore = create<AppStore>((set) => ({
     if (!active || active.soql === soql) return s;
     return { tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, soql } : t) };
   }),
-  setSoqlAndRun: (soql) => set((s) => {
+  setSoqlAndRun: (soql, suggestedName) => set((s) => {
     const active = s.tabs.find(t => t.id === s.activeTabId);
     if (!active) return s;
-    const tabs = active.soql === soql
+    // ユーザーがリネーム済みのタブは上書きしない（既定パターン `クエリ N` だけ自動命名対象）
+    const isDefaultName = /^クエリ \d+$/.test(active.name);
+    const newName = suggestedName && isDefaultName ? suggestedName : active.name;
+    const noChange = active.soql === soql && active.name === newName;
+    const tabs = noChange
       ? s.tabs
-      : s.tabs.map(t => t.id === s.activeTabId ? { ...t, soql } : t);
+      : s.tabs.map(t => t.id === s.activeTabId ? { ...t, soql, name: newName } : t);
     return { tabs, runTrigger: s.runTrigger + 1 };
   }),
   setTabFetchAll: (fetchAll) => set((s) => ({
@@ -109,7 +118,13 @@ export const useAppStore = create<AppStore>((set) => ({
   })),
   setQueryLoading: (queryLoading) => set({ queryLoading }),
   incrementRunTrigger: () => set((s) => ({ runTrigger: s.runTrigger + 1 })),
-  appendLog: (entry) => set((s) => ({ logs: [...s.logs.slice(-999), entry] })),
+  appendLog: (entry) => set((s) => {
+    // 保持上限は AppSettings.logBufferSize に従う。0 で無制限、未取得時は 1000 にフォールバック。
+    const cap = s.settings?.logBufferSize ?? 1000;
+    if (cap === 0) return { logs: [...s.logs, entry] };
+    // 既存の (cap - 1) 件 + 新規 1 件 = cap 件で安定
+    return { logs: [...s.logs.slice(-(cap - 1)), entry] };
+  }),
   setLogs: (logs) => set({ logs }),
 
   setTabResult: (result) => set((s) => ({

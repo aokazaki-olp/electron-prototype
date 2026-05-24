@@ -65,7 +65,8 @@ const SObjectBrowserInner = (): JSX.Element => {
         if (pendingRun.current) {
           pendingRun.current = false;
           const fields = desc.fields.map(f => f.name).join(',\n  ');
-          setSoqlAndRun(`SELECT\n  ${fields}\nFROM ${selectedObject}\nLIMIT 200`);
+          // タブ名は API 名（`Account` 等）で命名。既定パターン `クエリ N` の時だけ自動採用される。
+          setSoqlAndRun(`SELECT\n  ${fields}\nFROM ${selectedObject}\nLIMIT 200`, selectedObject);
         }
       } catch (e) {
         if (!cancelled) {
@@ -109,7 +110,7 @@ const SObjectBrowserInner = (): JSX.Element => {
     if (desc && desc.name === name) {
       // describe が name と同じオブジェクトのもの → fast path
       const fields = desc.fields.map(f => f.name).join(',\n  ');
-      setSoqlAndRun(`SELECT\n  ${fields}\nFROM ${name}\nLIMIT 200`);
+      setSoqlAndRun(`SELECT\n  ${fields}\nFROM ${name}\nLIMIT 200`, name);
     } else {
       pendingRun.current = true;
       setSelectedObject(name);

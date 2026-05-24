@@ -60,6 +60,8 @@ const api = {
     ipcRenderer.invoke(IPC.EXPORT_QUERY_EXCEL, records, columns),
   exportObjectDefinition: (objectName: string) =>
     ipcRenderer.invoke(IPC.EXPORT_OBJECT_DEFINITION, objectName),
+  exportLogFile: (logs: LogEntry[]) =>
+    ipcRenderer.invoke(IPC.EXPORT_LOG_FILE, logs),
 
   // ログ
   getRecentLogs: (limit?: number) => ipcRenderer.invoke(IPC.GET_RECENT_LOGS, limit),

@@ -23,6 +23,8 @@ export interface SfConnectionProfile {
 
 export interface AppSettings {
   defaultMaxRows: number;
+  /** LogViewer が保持するログエントリの上限件数。`0` で無制限。 */
+  logBufferSize: number;
 }
 
 // ============================================================================
@@ -159,6 +161,7 @@ export const IPC = {
   EXPORT_CSV: 'export:csv',
   EXPORT_QUERY_EXCEL: 'export:query-excel',
   EXPORT_OBJECT_DEFINITION: 'export:object-definition',
+  EXPORT_LOG_FILE: 'export:log-file',
 
   // ログ（push型 main → renderer）
   LOG_ENTRY: 'log:entry',
@@ -214,6 +217,8 @@ export interface SalesforceExplorerApi {
   exportCsv(records: Record<string, unknown>[], columns: string[], options: CsvExportOptions): Promise<void>;
   exportQueryExcel(records: Record<string, unknown>[], columns: string[]): Promise<void>;
   exportObjectDefinition(objectName: string): Promise<void>;
+  /** 現在の LogViewer 内容を .log ファイルに保存する。ユーザーが dialog をキャンセルした場合は何もせず返る。 */
+  exportLogFile(logs: LogEntry[]): Promise<void>;
 
   // ログ
   getRecentLogs(limit?: number): Promise<LogEntry[]>;
@@ -257,7 +262,7 @@ export const EXPECTED_API_KEYS = {
     'createRecord', 'updateRecord', 'deleteRecord',
     'saveSoqlFile', 'openSoqlFile',
     'loadTabs', 'saveTabs',
-    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportLogFile',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
   compass: [

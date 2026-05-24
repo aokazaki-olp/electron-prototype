@@ -107,19 +107,26 @@ beforeEach(() => {
 // ============================================================
 
 describe('loadSettings / saveSettings', () => {
-  it('未保存なら defaultMaxRows=2000 のデフォルトを返す', () => {
-    expect(loadSettings()).toEqual({ defaultMaxRows: 2000 });
+  it('未保存ならデフォルト (defaultMaxRows=2000, logBufferSize=1000) を返す', () => {
+    expect(loadSettings()).toEqual({ defaultMaxRows: 2000, logBufferSize: 1000 });
   });
 
   it('saveSettings 後は loadSettings で読み戻せる', () => {
-    saveSettings({ defaultMaxRows: 500 });
-    expect(loadSettings()).toEqual({ defaultMaxRows: 500 });
+    saveSettings({ defaultMaxRows: 500, logBufferSize: 5000 });
+    expect(loadSettings()).toEqual({ defaultMaxRows: 500, logBufferSize: 5000 });
   });
 
   it('saveSettings は全体上書き (部分マージしない)', () => {
-    saveSettings({ defaultMaxRows: 1000 });
-    saveSettings({ defaultMaxRows: 5000 });
+    saveSettings({ defaultMaxRows: 1000, logBufferSize: 1000 });
+    saveSettings({ defaultMaxRows: 5000, logBufferSize: 5000 });
     expect(loadSettings().defaultMaxRows).toBe(5000);
+    expect(loadSettings().logBufferSize).toBe(5000);
+  });
+
+  it('既存 store に新しいフィールドが無くてもデフォルトで補完される (schema migration 代替)', () => {
+    // 古いバージョンが書き込んだ「logBufferSize のない settings」を直接 store に注入
+    mockStoreData.primary.settings = { defaultMaxRows: 3000 };
+    expect(loadSettings()).toEqual({ defaultMaxRows: 3000, logBufferSize: 1000 });
   });
 });
 

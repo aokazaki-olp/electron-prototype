@@ -8,6 +8,7 @@
 import type {
   AppSettings,
   CsvExportOptions,
+  LogEntry,
   LogLevel,
   SfConnectionProfile,
   SoqlTabSnapshot,
@@ -51,7 +52,7 @@ export const assertLogLevel: (v: unknown) => asserts v is LogLevel = (v) => {
 // ============================================================================
 
 const isAppSettings = (v: unknown): v is AppSettings =>
-  isPlainObject(v) && isNumber(v['defaultMaxRows']);
+  isPlainObject(v) && isNumber(v['defaultMaxRows']) && isNumber(v['logBufferSize']);
 
 /**
  * `unknown` が [[AppSettings]] であることを assert する。
@@ -215,5 +216,32 @@ const isSoqlTabsState = (v: unknown): v is SoqlTabsState =>
 export const assertSoqlTabsState: (v: unknown) => asserts v is SoqlTabsState = (v) => {
   if (!isSoqlTabsState(v)) {
     throw new TypeError('IPC payload が SoqlTabsState ではありません');
+  }
+};
+
+// ============================================================================
+// LogEntry / LogEntry[]
+// ============================================================================
+
+const isLogEntry = (v: unknown): v is LogEntry =>
+  isPlainObject(v)
+  && isString(v['date'])
+  && isLogLevel(v['level'])
+  && isString(v['text']);
+
+/**
+ * `unknown` が [[LogEntry]] の配列であることを assert する。
+ *
+ * @param v - 未検証の payload
+ * @throws {TypeError} 配列でない、または要素が [[LogEntry]] 形状を満たさない場合
+ */
+export const assertLogEntryArray: (v: unknown) => asserts v is LogEntry[] = (v) => {
+  if (!Array.isArray(v)) {
+    throw new TypeError('IPC payload が配列ではありません');
+  }
+  for (const item of v) {
+    if (!isLogEntry(item)) {
+      throw new TypeError('IPC payload の配列要素が LogEntry ではありません');
+    }
   }
 };
