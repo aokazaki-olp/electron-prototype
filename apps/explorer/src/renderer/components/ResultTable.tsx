@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
+import { memo, useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -107,7 +107,15 @@ const SkeletonTable = ({ colCount }: { colCount: number }): JSX.Element => {
 const DEFAULT_COLUMN_SIZE = 150;
 const COLUMN_SIZE_DEBOUNCE_MS = 500;
 
-export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX.Element => {
+// useReactTable の options に渡す関数・オブジェクトは module スコープで固定する。
+// 毎 render で新規参照を渡すと TanStack Table 内部の memoization が外れ、
+// 行モデル全体を毎回 rebuild してしまい体感フリーズになる。
+const DEFAULT_COLUMN_OPTIONS = { minSize: 50, size: DEFAULT_COLUMN_SIZE, maxSize: 800 } as const;
+const CORE_ROW_MODEL = getCoreRowModel<Record<string, unknown>>();
+const SORTED_ROW_MODEL = getSortedRowModel<Record<string, unknown>>();
+const FILTERED_ROW_MODEL = getFilteredRowModel<Record<string, unknown>>();
+
+const ResultTableInner = ({ result, sObjectName, onSnippetClick }: Props): JSX.Element => {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilterInput, setGlobalFilterInput] = useState('');
   const [globalFilter, setGlobalFilter] = useState('');
@@ -197,8 +205,11 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
       },
     })), [cols]);
 
+  // data も useMemo で安定化。result が同一でも records が同一参照になるとは限らないため。
+  const tableData = useMemo(() => result?.records ?? [], [result]);
+
   const table = useReactTable({
-    data: result?.records ?? [],
+    data: tableData,
     columns,
     state: { sorting, globalFilter, columnSizing },
     onSortingChange: setSorting,
@@ -206,10 +217,10 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
     onColumnSizingChange: handleColumnSizingChange,
     enableColumnResizing: true,
     columnResizeMode: 'onChange',
-    defaultColumn: { minSize: 50, size: DEFAULT_COLUMN_SIZE, maxSize: 800 },
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    defaultColumn: DEFAULT_COLUMN_OPTIONS,
+    getCoreRowModel: CORE_ROW_MODEL,
+    getSortedRowModel: SORTED_ROW_MODEL,
+    getFilteredRowModel: FILTERED_ROW_MODEL,
   });
 
   const rows = table.getRowModel().rows;
@@ -548,3 +559,7 @@ export const ResultTable = ({ result, sObjectName, onSnippetClick }: Props): JSX
     </div>
   );
 };
+
+// MainPage が tabs/activeTabId を購読しているため、SOQL タイピング 1 文字や activeTab 切替で
+// 親が再 render する。memo で props 不変時の re-render をスキップする。
+export const ResultTable = memo(ResultTableInner);

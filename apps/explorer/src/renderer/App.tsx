@@ -95,13 +95,23 @@ const App = (): JSX.Element => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // タブ変更時の永続化（IPC saveTabs）。hydrate 前の保存はスキップする
+  // タブ変更時の永続化（IPC saveTabs）。hydrate 前の保存はスキップする。
+  // setSoql は 1 文字打つたびに tabs を新規参照にするので、毎タイプで saveTabs が走ると
+  // main プロセスの同期 fs.writeFileSync (electron-store) で UI が体感フリーズする。
+  // 400ms debounce で「タイピング停止後にまとめて保存」する。タブ切替・追加・閉じる等の
+  // 単発操作は次の 400ms で保存され、UI 体感には影響しない。
+  const saveTabsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!tabsHydrated.current) return;
-    void window.sfx.saveTabs(persistTabs({ tabs, activeTabId })).catch(() => {
-      // 保存失敗は致命的でないのでログのみ
-      window.sfx.rendererLog('warn', 'タブ状態の保存に失敗しました');
-    });
+    if (saveTabsTimerRef.current) clearTimeout(saveTabsTimerRef.current);
+    saveTabsTimerRef.current = setTimeout(() => {
+      void window.sfx.saveTabs(persistTabs({ tabs, activeTabId })).catch(() => {
+        window.sfx.rendererLog('warn', 'タブ状態の保存に失敗しました');
+      });
+    }, 400);
+    return () => {
+      if (saveTabsTimerRef.current) clearTimeout(saveTabsTimerRef.current);
+    };
   }, [tabs, activeTabId]);
 
   // 設定モーダル: Esc クローズ + 開閉時のフォーカス管理

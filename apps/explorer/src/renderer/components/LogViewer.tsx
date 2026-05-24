@@ -63,12 +63,17 @@ const LogViewerInner = (): JSX.Element => {
     overscan: 20,
   });
 
-  // 自動スクロール: smooth は大量ログでアニメ詰まりを起こすため auto を使う
+  // 自動スクロール: smooth は大量ログでアニメ詰まりを起こすため auto を使う。
+  // virtualizer は毎 render で新規参照になるため依存から外す (ref 経由で最新を引く)。
+  // ここを依存に入れると毎 render で scrollToIndex が走り、ログ流入のたびに DOM が
+  // 高頻度で書き換えられて UI スレッドが詰まる。
+  const virtualizerRef = useRef(virtualizer);
+  virtualizerRef.current = virtualizer;
   useEffect(() => {
     if (autoScroll && filtered.length > 0) {
-      virtualizer.scrollToIndex(filtered.length - 1, { align: 'end', behavior: 'auto' });
+      virtualizerRef.current.scrollToIndex(filtered.length - 1, { align: 'end', behavior: 'auto' });
     }
-  }, [filtered.length, autoScroll, virtualizer]);
+  }, [filtered.length, autoScroll]);
 
   const totalSize = virtualizer.getTotalSize();
   const items = virtualizer.getVirtualItems();
@@ -148,7 +153,10 @@ const LogViewerInner = (): JSX.Element => {
                 <span className={`uppercase flex-shrink-0 w-10 ${LEVEL_COLOR[entry.level]}`}>
                   {entry.level}
                 </span>
-                <span className="break-all">{entry.text}</span>
+                {/* virtualizer は estimateSize=22px で 1 行高を仮定しているので、
+                    長文 (HTTP URL 等) を折り返すと隣の絶対配置行と重なって描画される。
+                    truncate で 1 行に強制し、フル文字列は title 属性で確認できるようにする。 */}
+                <span title={entry.text} className="truncate min-w-0 flex-1">{entry.text}</span>
               </div>
             );
           })}
