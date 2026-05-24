@@ -9,7 +9,7 @@ import type { SObjectDescribe } from '@app/ipc-contract';
 const SObjectBrowserInner = (): JSX.Element => {
   const {
     sobjects, selectedObject, sobjectsLoading,
-    setSobjects, setSelectedObject, setSobjectsLoading, setSoqlAndRun,
+    setSobjects, setSelectedObject, setSobjectsLoading, setSelectedObjectDescribe, setSoqlAndRun,
   } = useAppStore(
     useShallow(s => ({
       sobjects: s.sobjects,
@@ -18,6 +18,7 @@ const SObjectBrowserInner = (): JSX.Element => {
       setSobjects: s.setSobjects,
       setSelectedObject: s.setSelectedObject,
       setSobjectsLoading: s.setSobjectsLoading,
+      setSelectedObjectDescribe: s.setSelectedObjectDescribe,
       setSoqlAndRun: s.setSoqlAndRun,
     }))
   );
@@ -50,6 +51,7 @@ const SObjectBrowserInner = (): JSX.Element => {
   useEffect(() => {
     if (!selectedObject) {
       setDescribe(null);
+      setSelectedObjectDescribe(null);
       return;
     }
     setDescribeLoading(true);
@@ -60,6 +62,8 @@ const SObjectBrowserInner = (): JSX.Element => {
         const desc = await window.sfx.describeObject(selectedObject);
         if (cancelled) return;
         setDescribe(desc);
+        // store にも昇格させて SoqlEditor の補完で参照できるようにする
+        setSelectedObjectDescribe(desc);
         if (pendingRun.current) {
           pendingRun.current = false;
           const fields = desc.fields.map(f => f.name).join(',\n  ');
@@ -77,7 +81,7 @@ const SObjectBrowserInner = (): JSX.Element => {
 
     fetchDescribe();
     return () => { cancelled = true; };
-  }, [selectedObject, setSoqlAndRun]);
+  }, [selectedObject, setSelectedObjectDescribe, setSoqlAndRun]);
 
   // 万単位 SObject 規模に備えて検索文字列の lower 化は一度だけ + useMemo でフィルタ
   const filtered = useMemo(() => {

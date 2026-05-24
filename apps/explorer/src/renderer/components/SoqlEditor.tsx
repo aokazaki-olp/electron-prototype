@@ -2,12 +2,21 @@ import { memo, useState, useEffect, useCallback, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
+import { autocompletion } from '@codemirror/autocomplete';
 import { Play, AlertCircle, Plus, X, Save, FolderOpen } from 'lucide-react';
 import { useAppStore } from '../store.js';
+import { soqlCompletionSource } from './soqlCompletion.js';
 
 // モジュールスコープで固定: レンダーのたびに新しいオブジェクトが生まれると
 // @uiw/react-codemirror が StateEffect.reconfigure を毎回実行してしまいフリーズする
-const CM_EXTENSIONS = [sql()];
+const CM_EXTENSIONS = [
+  sql(),
+  autocompletion({
+    override: [soqlCompletionSource],
+    // SF オブジェクト名・フィールド名は大文字小文字混在のため insensitive にしておく
+    activateOnTyping: true,
+  }),
+];
 const CM_BASIC_SETUP = { lineNumbers: true, foldGutter: false } as const;
 
 interface Props {

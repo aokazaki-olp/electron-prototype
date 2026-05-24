@@ -17,5 +17,8 @@
     "@app/libs": "*",
     "@app/main-core": "*",
     "react-resizable-panels": "^4.11.2"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.2"
   }
 }

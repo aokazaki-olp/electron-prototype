@@ -9,6 +9,7 @@ import { create } from 'zustand';
 import type {
   SfConnectionProfile,
   SObjectSummary,
+  SObjectDescribe,
   LogEntry,
   AppSettings,
   QueryResult,
@@ -36,6 +37,11 @@ interface AppStore {
   sobjects: SObjectSummary[];
   selectedObject: string | null;
   sobjectsLoading: boolean;
+  /**
+   * 現在 selectedObject に対応する describe。SoqlEditor の補完で参照される。
+   * SObjectBrowser が選択時に取得し、store に書き込む。
+   */
+  selectedObjectDescribe: SObjectDescribe | null;
 
   // SOQLエディタ（タブ）
   tabs: SoqlTab[];
@@ -54,6 +60,7 @@ interface AppStore {
   setSobjects: (list: SObjectSummary[]) => void;
   setSelectedObject: (name: string | null) => void;
   setSobjectsLoading: (v: boolean) => void;
+  setSelectedObjectDescribe: (d: SObjectDescribe | null) => void;
   setSoql: (s: string) => void;
   /**
    * SOQL を active tab に書き込み、実行を trigger する。
@@ -83,6 +90,7 @@ export const useAppStore = create<AppStore>((set) => ({
   sobjects: [],
   selectedObject: null,
   sobjectsLoading: false,
+  selectedObjectDescribe: null,
   tabs: [DEFAULT_TAB],
   activeTabId: DEFAULT_TAB.id,
   queryLoading: false,
@@ -96,6 +104,7 @@ export const useAppStore = create<AppStore>((set) => ({
   setSobjects: (sobjects) => set({ sobjects }),
   setSelectedObject: (selectedObject) => set({ selectedObject }),
   setSobjectsLoading: (sobjectsLoading) => set({ sobjectsLoading }),
+  setSelectedObjectDescribe: (selectedObjectDescribe) => set({ selectedObjectDescribe }),
   setSoql: (soql) => set((s) => {
     const active = s.tabs.find(t => t.id === s.activeTabId);
     if (!active || active.soql === soql) return s;
