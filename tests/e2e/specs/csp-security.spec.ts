@@ -73,13 +73,14 @@ test.describe('CSP / プロセス境界', () => {
       return sfx ? Object.keys(sfx).sort() : [];
     });
     expect(keys).toEqual([
+      'bulkQuery',
       'createRecord', 'deleteProfile', 'deleteRecord', 'describeObject', 'disconnect',
-      'exportCsv', 'exportObjectDefinition', 'exportQueryExcel',
+      'exportCsv', 'exportLogFile', 'exportObjectDefinition', 'exportQueryExcel',
       'getAuthState', 'getRecentLogs',
-      'listSObjects', 'loadProfiles', 'loadSettings', 'loadTabs',
+      'listSObjects', 'loadColumnSizes', 'loadProfiles', 'loadSettings', 'loadTabs',
       'onLogEntry', 'openSoqlFile',
       'query', 'reauthForWrite', 'rendererLog',
-      'saveProfile', 'saveSettings', 'saveSoqlFile', 'saveTabs',
+      'saveColumnSizes', 'saveProfile', 'saveSettings', 'saveSoqlFile', 'saveTabs',
       'startOAuth', 'updateRecord',
     ]);
   });
