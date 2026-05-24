@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { MainPage } from './pages/MainPage.js';
 import { ToastContainer } from './components/Toast.js';
+import { useGlobalKeybindings } from './hooks/useGlobalKeybindings.js';
 import { useAppStore, persistTabs } from './store.js';
 import type { SoqlTab } from './store.js';
 import type { LogEntry } from '@app/ipc-contract';
@@ -27,6 +28,9 @@ const App = (): JSX.Element => {
   const [showSettings, setShowSettings] = useState(false);
   const settingsCloseBtnRef = useRef<HTMLDivElement>(null);
   const tabsHydrated = useRef(false);
+
+  // B7: グローバルショートカット (Ctrl+T / Ctrl+W / Ctrl+Tab)
+  useGlobalKeybindings();
 
   // ログストリーミング購読（マウント時のみ）
   useEffect(() => {
