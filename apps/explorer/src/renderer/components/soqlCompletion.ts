@@ -63,12 +63,70 @@ const DATE_LITERAL_COMPLETIONS = DATE_LITERALS.map(toCompletion('constant'));
  */
 export type SoqlPosition = 'select' | 'from' | 'other';
 
+/**
+ * 文字列リテラル ('...') / 行コメント (-- ...) / ブロックコメント (slash * ... * slash) を
+ * 空白文字に置換して、SELECT/FROM/WHERE の position 判定からこれらの中身を除外する。
+ *
+ * 例: `WHERE Description LIKE '%SELECT%'` の `'SELECT'` 部分を `'        '` に均し、
+ * 末尾の FROM/WHERE 出現位置だけが context 判定に使われるようにする。
+ *
+ * @param src - 解析対象 SOQL (カーソル前のテキスト)
+ * @returns リテラル・コメントを空白に置き換えた文字列 (元と長さ一致)
+ */
+const stripLiteralsAndComments = (src: string): string => {
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    const next = src[i + 1];
+    // ブロックコメント /* ... */ (閉じが無ければ末尾まで)
+    if (ch === '/' && next === '*') {
+      const end = src.indexOf('*/', i + 2);
+      const stop = end < 0 ? src.length : end + 2;
+      out += ' '.repeat(stop - i);
+      i = stop;
+      continue;
+    }
+    // 行コメント -- ... (改行まで)
+    if (ch === '-' && next === '-') {
+      const end = src.indexOf('\n', i + 2);
+      const stop = end < 0 ? src.length : end;
+      out += ' '.repeat(stop - i);
+      i = stop;
+      continue;
+    }
+    // 文字列リテラル: SOQL は ' のみ。SF 仕様で内部の ' は \' エスケープ。
+    if (ch === '\'') {
+      const start = i;
+      i++;
+      while (i < src.length) {
+        if (src[i] === '\\' && i + 1 < src.length) {
+          i += 2;
+          continue;
+        }
+        if (src[i] === '\'') {
+          i++;
+          break;
+        }
+        i++;
+      }
+      out += ' '.repeat(i - start);
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+};
+
 export const detectSoqlPosition = (textBeforeCursor: string): SoqlPosition => {
-  const upper = textBeforeCursor.toUpperCase();
+  // 文字列リテラル・コメント内の SELECT/FROM/WHERE を context 判定から除外する。
+  // 例: `WHERE Note LIKE '%FROM%'` の `FROM` がリテラル内なので無視されるべき。
+  const sanitized = stripLiteralsAndComments(textBeforeCursor).toUpperCase();
   // 最後に出てきた SELECT / FROM の位置でざっくり分類する。
-  const lastSelect = upper.lastIndexOf('SELECT');
-  const lastFrom = upper.lastIndexOf('FROM');
-  const lastWhere = upper.lastIndexOf('WHERE');
+  const lastSelect = sanitized.lastIndexOf('SELECT');
+  const lastFrom = sanitized.lastIndexOf('FROM');
+  const lastWhere = sanitized.lastIndexOf('WHERE');
 
   if (lastFrom > lastSelect && lastFrom > lastWhere) {
     return 'from';
@@ -85,9 +143,13 @@ export const detectSoqlPosition = (textBeforeCursor: string): SoqlPosition => {
  */
 export const soqlCompletionSource = (context: CompletionContext): CompletionResult | null => {
   const match = context.matchBefore(/[A-Za-z_][A-Za-z0-9_]*/);
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   // 明示トリガでない & 空 token のときは何も出さない（過剰なポップアップを避ける）
-  if (match.from === match.to && !context.explicit) return null;
+  if (match.from === match.to && !context.explicit) {
+    return null;
+  }
 
   const textBefore = context.state.doc.sliceString(0, context.pos);
   const position = detectSoqlPosition(textBefore);

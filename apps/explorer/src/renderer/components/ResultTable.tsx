@@ -41,9 +41,14 @@ const EMPTY_STATE_SNIPPETS: ReadonlyArray<{ label: string; soql: string }> = [
 const ATTRIBUTES_KEY = 'attributes';
 
 const getColumns = (records: Record<string, unknown>[]): string[] => {
-  if (records.length === 0) return [];
+  if (records.length === 0) {
+    return [];
+  }
+  // 全件走査して、リーディング行に NULL が並ぶ nullable field の取りこぼしを防ぐ。
+  // Bulk API 結果のように先頭で空になりがちなケースで列が消える事故を回避する。
+  // 数万件規模でも単純な Set 挿入なので O(N*K) で十分高速。
   const keys = new Set<string>();
-  for (const record of records.slice(0, 10)) {
+  for (const record of records) {
     for (const key of Object.keys(record)) {
       if (key !== ATTRIBUTES_KEY) {
         keys.add(key);
@@ -141,25 +146,37 @@ const ResultTableInner = ({ result, sObjectName, onSnippetClick }: Props): JSX.E
     }
     let cancelled = false;
     void window.sfx.loadColumnSizes().then(all => {
-      if (cancelled) return;
+      if (cancelled) {
+        return;
+      }
       setColumnSizing(all[sObjectName] ?? {});
-    }).catch(() => { /* 起動直後の race 等は無視 */ });
-    return () => { cancelled = true; };
+    }).catch(() => {
+      /* 起動直後の race 等は無視 */
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [sObjectName]);
 
   // 列幅変更を sObject 別に永続化 (500ms debounce)
   const handleColumnSizingChange = useCallback((updater: ColumnSizingState | ((prev: ColumnSizingState) => ColumnSizingState)) => {
     setColumnSizing(prev => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
-      if (!sObjectName) return next;
-      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      if (!sObjectName) {
+        return next;
+      }
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
       persistTimerRef.current = setTimeout(() => {
         void window.sfx.loadColumnSizes().then(all => {
           const merged = { ...all, [sObjectName]: next };
           void window.sfx.saveColumnSizes(merged).catch(() => {
             window.sfx.rendererLog('warn', '列幅の保存に失敗しました');
           });
-        }).catch(() => { /* 取得失敗は黙って諦める */ });
+        }).catch(() => {
+          /* 取得失敗は黙って諦める */
+        });
       }, COLUMN_SIZE_DEBOUNCE_MS);
       return next;
     });
@@ -167,7 +184,9 @@ const ResultTableInner = ({ result, sObjectName, onSnippetClick }: Props): JSX.E
 
   useEffect(() => {
     return () => {
-      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
     };
   }, []);
 
@@ -199,8 +218,12 @@ const ResultTableInner = ({ result, sObjectName, onSnippetClick }: Props): JSX.E
       header: col,
       cell: ({ getValue }) => {
         const v = getValue();
-        if (v === null || v === undefined) return <span className="text-slate-300">null</span>;
-        if (typeof v === 'object') return <span className="text-slate-500">[object]</span>;
+        if (v === null || v === undefined) {
+          return <span className="text-slate-300">null</span>;
+        }
+        if (typeof v === 'object') {
+          return <span className="text-slate-500">[object]</span>;
+        }
         return String(v);
       },
     })), [cols]);
@@ -241,7 +264,9 @@ const ResultTableInner = ({ result, sObjectName, onSnippetClick }: Props): JSX.E
     : 0;
 
   const exportCsvWithOptions = async (options: CsvExportOptions) => {
-    if (!result) return;
+    if (!result) {
+      return;
+    }
     try {
       await window.sfx.exportCsv(result.records, cols, options);
       setExportDialog(d => ({ ...d, open: false }));
@@ -271,7 +296,9 @@ const ResultTableInner = ({ result, sObjectName, onSnippetClick }: Props): JSX.E
 
   const handleExportExcel = async () => {
     setExportMenuOpen(false);
-    if (!result) return;
+    if (!result) {
+      return;
+    }
     try {
       await window.sfx.exportQueryExcel(result.records, cols);
     } catch (e) {
@@ -283,12 +310,18 @@ const ResultTableInner = ({ result, sObjectName, onSnippetClick }: Props): JSX.E
 
   // ドロップダウン: 外側クリック / Esc で閉じる
   useEffect(() => {
-    if (!exportMenuOpen) return;
+    if (!exportMenuOpen) {
+      return;
+    }
     const onClick = (e: MouseEvent) => {
-      if (!exportMenuRef.current?.contains(e.target as Node)) setExportMenuOpen(false);
+      if (!exportMenuRef.current?.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExportMenuOpen(false);
+      if (e.key === 'Escape') {
+        setExportMenuOpen(false);
+      }
     };
     document.addEventListener('mousedown', onClick);
     document.addEventListener('keydown', onKey);
@@ -300,9 +333,13 @@ const ResultTableInner = ({ result, sObjectName, onSnippetClick }: Props): JSX.E
 
   // モーダル: Esc クローズ
   useEffect(() => {
-    if (!exportDialog.open) return;
+    if (!exportDialog.open) {
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setExportDialog(d => ({ ...d, open: false }));
+      if (e.key === 'Escape') {
+        setExportDialog(d => ({ ...d, open: false }));
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);

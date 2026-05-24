@@ -63,10 +63,14 @@ const ToastItem = ({ toast, onDismiss }: ToastItemProps): JSX.Element => {
 
   // info / success は 4 秒で自動消去。error / warn は手動 dismiss のみ。
   useEffect(() => {
-    if (toast.level === 'error' || toast.level === 'warn') return;
+    if (toast.level === 'error' || toast.level === 'warn') {
+      return;
+    }
     timerRef.current = setTimeout(() => onDismiss(toast.id), AUTO_DISMISS_MS);
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
     };
   }, [toast.id, toast.level, onDismiss]);
 

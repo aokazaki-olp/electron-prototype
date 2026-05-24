@@ -136,16 +136,18 @@ const LogViewerInner = (): JSX.Element => {
         <div style={{ height: totalSize, position: 'relative' }}>
           {items.map(vItem => {
             const entry = filtered[vItem.index];
-            if (!entry) return null;
-            // LogEntry に id が無いため、date + index を複合キーにして
-            // フィルタ条件変更時の reconciliation 破綻を抑える
+            if (!entry) {
+              return null;
+            }
+            // 各 LogEntry は main の logger.ts またはフォールバックで一意な seq を持つ。
+            // これによりフィルタ・並べ替え後も React key が安定し、reconciliation 破綻を防ぐ。
             const time = (() => {
               const date = new Date(entry.date);
               return Number.isNaN(date.getTime()) ? entry.date : date.toLocaleTimeString('ja-JP', { hour12: false });
             })();
             return (
               <div
-                key={`${entry.date}-${vItem.index}`}
+                key={entry.seq ?? `${entry.date}-${vItem.index}`}
                 style={{ position: 'absolute', top: vItem.start, left: 0, right: 0, height: vItem.size }}
                 className={`px-2 py-0.5 border-b border-slate-800 flex gap-2 ${LEVEL_COLOR[entry.level]}`}
               >

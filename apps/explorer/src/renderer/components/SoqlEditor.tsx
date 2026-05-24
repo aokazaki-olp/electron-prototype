@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useCallback, useRef } from 'react';
+import type { ExecutionMode } from '@app/ipc-contract';
 import { useShallow } from 'zustand/react/shallow';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
@@ -26,7 +27,7 @@ interface Props {
 const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   const {
     tabs, activeTabId, queryLoading, setQueryLoading,
-    setSoql, setTabFetchAll, setTabResult, addTab, addTabWithContent, closeTab,
+    setSoql, setTabFetchAll, setTabExecutionMode, setTabResult, addTab, addTabWithContent, closeTab,
     setActiveTabId, renameTab, runTrigger, isDark,
   } = useAppStore(
     useShallow(s => ({
@@ -36,6 +37,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
       setQueryLoading: s.setQueryLoading,
       setSoql: s.setSoql,
       setTabFetchAll: s.setTabFetchAll,
+      setTabExecutionMode: s.setTabExecutionMode,
       setTabResult: s.setTabResult,
       addTab: s.addTab,
       addTabWithContent: s.addTabWithContent,
@@ -49,19 +51,21 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   const [error, setError] = useState<string | null>(null);
   const [editingTabId, setEditingTabId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
-  // 実行方式: 'rest' = SOQL REST /query（高速、〜数万件向け）、'bulk' = Bulk API v2 Query（API call 節約、大量件数向け）
-  // 「テスト的に」導入したため、現状はセッション内のローカルステート（タブごとに保存しない）
-  const [executionMode, setExecutionMode] = useState<'rest' | 'bulk'>('rest');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   const activeTab = tabs.find(t => t.id === activeTabId);
   const soql = activeTab?.soql ?? '';
   const fetchAll = activeTab?.fetchAll ?? false;
+  // 実行方式 (rest / bulk) はタブごとに永続化する。store の SoqlTab を真ソースとし、
+  // App.tsx の saveTabs (debounce 400ms) で main プロセスに永続化される。
+  const executionMode: ExecutionMode = activeTab?.executionMode ?? 'rest';
   const maxRows = fetchAll ? 0 : (settings?.defaultMaxRows ?? 2000);
 
   const runQuery = useCallback(async () => {
     const trimmed = soql.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      return;
+    }
     setError(null);
     setQueryLoading(true);
     try {
@@ -89,7 +93,9 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
 
   const lastRunTriggerRef = useRef(0);
   useEffect(() => {
-    if (runTrigger <= 0 || runTrigger === lastRunTriggerRef.current) return;
+    if (runTrigger <= 0 || runTrigger === lastRunTriggerRef.current) {
+      return;
+    }
     lastRunTriggerRef.current = runTrigger;
     runQueryRef.current();
   }, [runTrigger]);
@@ -139,7 +145,9 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     // 日本語 IME composition 中の Enter で SOQL 実行が暴発するのを防ぐ
-    if (e.nativeEvent.isComposing) return;
+    if (e.nativeEvent.isComposing) {
+      return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       runQuery();
@@ -158,7 +166,10 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
           <div
             key={tab.id}
             onClick={() => setActiveTabId(tab.id)}
-            onDoubleClick={e => { e.stopPropagation(); startRename(tab); }}
+            onDoubleClick={e => {
+              e.stopPropagation();
+              startRename(tab);
+            }}
             role="tab"
             aria-label={tab.name}
             aria-selected={tab.id === activeTabId}
@@ -175,9 +186,15 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
                 onChange={e => setEditingName(e.target.value)}
                 onBlur={commitRename}
                 onKeyDown={e => {
-                  if (e.nativeEvent.isComposing) return;
-                  if (e.key === 'Enter') commitRename();
-                  if (e.key === 'Escape') setEditingTabId(null);
+                  if (e.nativeEvent.isComposing) {
+                    return;
+                  }
+                  if (e.key === 'Enter') {
+                    commitRename();
+                  }
+                  if (e.key === 'Escape') {
+                    setEditingTabId(null);
+                  }
                   e.stopPropagation();
                 }}
                 onClick={e => e.stopPropagation()}
@@ -192,7 +209,10 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
             {tabs.length > 1 && (
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); closeTab(tab.id); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeTab(tab.id);
+                }}
                 aria-label={`${tab.name} を閉じる`}
                 className="opacity-0 group-hover:opacity-100 hover:text-red-500 ml-0.5"
               >
@@ -254,7 +274,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
               name="exec-mode"
               value="rest"
               checked={executionMode === 'rest'}
-              onChange={() => setExecutionMode('rest')}
+              onChange={() => setTabExecutionMode('rest')}
               className="accent-blue-500"
             />
             REST
@@ -265,7 +285,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
               name="exec-mode"
               value="bulk"
               checked={executionMode === 'bulk'}
-              onChange={() => setExecutionMode('bulk')}
+              onChange={() => setTabExecutionMode('bulk')}
               className="accent-blue-500"
             />
             Bulk

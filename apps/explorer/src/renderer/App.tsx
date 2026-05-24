@@ -65,6 +65,8 @@ const App = (): JSX.Element => {
             name: t.name,
             soql: t.soql,
             fetchAll: t.fetchAll,
+            // 旧データ互換: executionMode が欠ける場合は rest にフォールバック
+            executionMode: t.executionMode ?? 'rest',
             result: null,
           }));
           const validId = restored.find(t => t.id === tabsState.activeTabId)?.id ?? restored[0]?.id;
@@ -102,23 +104,33 @@ const App = (): JSX.Element => {
   // 単発操作は次の 400ms で保存され、UI 体感には影響しない。
   const saveTabsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!tabsHydrated.current) return;
-    if (saveTabsTimerRef.current) clearTimeout(saveTabsTimerRef.current);
+    if (!tabsHydrated.current) {
+      return;
+    }
+    if (saveTabsTimerRef.current) {
+      clearTimeout(saveTabsTimerRef.current);
+    }
     saveTabsTimerRef.current = setTimeout(() => {
       void window.sfx.saveTabs(persistTabs({ tabs, activeTabId })).catch(() => {
         window.sfx.rendererLog('warn', 'タブ状態の保存に失敗しました');
       });
     }, 400);
     return () => {
-      if (saveTabsTimerRef.current) clearTimeout(saveTabsTimerRef.current);
+      if (saveTabsTimerRef.current) {
+        clearTimeout(saveTabsTimerRef.current);
+      }
     };
   }, [tabs, activeTabId]);
 
   // 設定モーダル: Esc クローズ + 開閉時のフォーカス管理
   useEffect(() => {
-    if (!showSettings) return;
+    if (!showSettings) {
+      return;
+    }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setShowSettings(false);
+      if (e.key === 'Escape') {
+        setShowSettings(false);
+      }
     };
     document.addEventListener('keydown', onKey);
     // 開いた直後にモーダル内へフォーカスを移動

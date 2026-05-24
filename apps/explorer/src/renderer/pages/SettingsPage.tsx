@@ -26,12 +26,15 @@ interface Props {
 export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
   // useShallow で必要フィールドのみ subscribe する。引数なし useAppStore() は store 全体を返すため、
   // ログ追加など無関係な更新で SettingsPage が毎回再レンダリングされる事故を防ぐ。
-  const { profiles, setProfiles, settings, setSettings } = useAppStore(
+  const { profiles, setProfiles, settings, setSettings, activeProfileId, setActiveProfileId, setAuthState } = useAppStore(
     useShallow(s => ({
       profiles: s.profiles,
       setProfiles: s.setProfiles,
       settings: s.settings,
       setSettings: s.setSettings,
+      activeProfileId: s.activeProfileId,
+      setActiveProfileId: s.setActiveProfileId,
+      setAuthState: s.setAuthState,
     }))
   );
   const [editing, setEditing] = useState<SfConnectionProfile | null>(null);
@@ -90,6 +93,12 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
       await window.sfx.deleteProfile(id);
       const updated = await window.sfx.loadProfiles();
       setProfiles(updated);
+      // 削除されたプロファイルが active なら、状態を切断扱いに戻す。
+      // 残しておくとヘッダーが「存在しない profile.name」を引いて空表示になる事故が起きる。
+      if (activeProfileId === id) {
+        setActiveProfileId(null);
+        setAuthState('disconnected');
+      }
     } catch (e) {
       showToast('error', `プロファイル削除に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -114,11 +123,17 @@ export const SettingsPage = ({ onConnect, onClose }: Props): JSX.Element => {
 
   // saveAppSettings は連打 race を避けるため in-flight save を待ってから次を投げる
   const saveAppSettings = async (patch: Partial<AppSettings>) => {
-    if (!settings) return;
+    if (!settings) {
+      return;
+    }
     const updated = { ...settings, ...patch };
     setSettings(updated); // 楽観更新
     if (pendingSave.current) {
-      try { await pendingSave.current; } catch { /* 直前のエラーは個別に扱う */ }
+      try {
+        await pendingSave.current;
+      } catch {
+        /* 直前のエラーは個別に扱う */
+      }
     }
     const p = (async () => {
       try {

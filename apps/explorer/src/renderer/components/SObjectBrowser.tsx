@@ -60,7 +60,9 @@ const SObjectBrowserInner = (): JSX.Element => {
     const fetchDescribe = async () => {
       try {
         const desc = await window.sfx.describeObject(selectedObject);
-        if (cancelled) return;
+        if (cancelled) {
+          return;
+        }
         setDescribe(desc);
         // store にも昇格させて SoqlEditor の補完で参照できるようにする
         setSelectedObjectDescribe(desc);
@@ -73,20 +75,29 @@ const SObjectBrowserInner = (): JSX.Element => {
       } catch (e) {
         if (!cancelled) {
           window.sfx.rendererLog('error', `describe失敗: ${e instanceof Error ? e.message : String(e)}`);
+          // 失敗時もフラグは下げる。残しておくと次に成功した describe で
+          // 古い意図のクエリが誤って自動実行される silent バグになる。
+          pendingRun.current = false;
         }
       } finally {
-        if (!cancelled) setDescribeLoading(false);
+        if (!cancelled) {
+          setDescribeLoading(false);
+        }
       }
     };
 
     fetchDescribe();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedObject, setSelectedObjectDescribe, setSoqlAndRun]);
 
   // 万単位 SObject 規模に備えて検索文字列の lower 化は一度だけ + useMemo でフィルタ
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    if (!q) return sobjects;
+    if (!q) {
+      return sobjects;
+    }
     return sobjects.filter(o =>
       o.label.toLowerCase().includes(q) || o.name.toLowerCase().includes(q)
     );
@@ -120,7 +131,9 @@ const SObjectBrowserInner = (): JSX.Element => {
   };
 
   const handleExportDefinition = async () => {
-    if (!selectedObject) return;
+    if (!selectedObject) {
+      return;
+    }
     try {
       await window.sfx.exportObjectDefinition(selectedObject);
     } catch (e) {
@@ -164,7 +177,9 @@ const SObjectBrowserInner = (): JSX.Element => {
         <div style={{ height: `${listVirtualizer.getTotalSize()}px`, position: 'relative' }}>
           {listVirtualizer.getVirtualItems().map(vItem => {
             const o = filtered[vItem.index];
-            if (!o) return null;
+            if (!o) {
+              return null;
+            }
             return (
               <button
                 key={o.name}

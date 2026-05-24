@@ -23,8 +23,12 @@ export const useGlobalKeybindings = (): void => {
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       // IME composition 中の Enter / 文字キーで暴発しないよう必ず先に弾く
-      if (e.isComposing) return;
-      if (!isShortcutKey(e)) return;
+      if (e.isComposing) {
+        return;
+      }
+      if (!isShortcutKey(e)) {
+        return;
+      }
 
       const key = e.key.toLowerCase();
       const store = useAppStore.getState();
@@ -32,13 +36,23 @@ export const useGlobalKeybindings = (): void => {
       // Ctrl+Tab / Ctrl+Shift+Tab — タブ切替
       if (e.key === 'Tab') {
         const tabs = store.tabs;
-        if (tabs.length <= 1) return;
+        if (tabs.length <= 1) {
+          return;
+        }
         const idx = tabs.findIndex(t => t.id === store.activeTabId);
-        if (idx < 0) return;
+        if (idx < 0) {
+          return;
+        }
         const delta = e.shiftKey ? -1 : 1;
         const nextIdx = (idx + delta + tabs.length) % tabs.length;
+        // modulo で必ず範囲内のはずだが、CODING_RULES §4.1 で `!` 非null アサーションは禁止のため
+        // 明示的に nullable チェックで弾く (安全側 + 規約準拠)。
+        const nextTab = tabs[nextIdx];
+        if (!nextTab) {
+          return;
+        }
         e.preventDefault();
-        store.setActiveTabId(tabs[nextIdx]!.id);
+        store.setActiveTabId(nextTab.id);
         return;
       }
 
@@ -51,7 +65,10 @@ export const useGlobalKeybindings = (): void => {
 
       // Ctrl+W — アクティブタブを閉じる
       if (key === 'w' && !e.shiftKey && !e.altKey) {
-        if (store.tabs.length <= 1) return; // 最後の 1 枚は残す
+        if (store.tabs.length <= 1) {
+          // 最後の 1 枚は残す
+          return;
+        }
         e.preventDefault();
         store.closeTab(store.activeTabId);
         return;

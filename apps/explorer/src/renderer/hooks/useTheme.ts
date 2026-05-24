@@ -13,10 +13,16 @@ import { useEffect } from 'react';
 import { useAppStore } from '../store.js';
 
 const computeIsDark = (theme: 'light' | 'dark' | 'system'): boolean => {
-  if (theme === 'dark') return true;
-  if (theme === 'light') return false;
+  if (theme === 'dark') {
+    return true;
+  }
+  if (theme === 'light') {
+    return false;
+  }
   // 'system': prefers-color-scheme
-  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  if (typeof window === 'undefined' || !window.matchMedia) {
+    return false;
+  }
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 };
 
@@ -32,7 +38,9 @@ export const useTheme = (): void => {
     apply(computeIsDark(theme));
 
     // 'system' の場合のみ matchMedia を購読し、OS 側の変更で再評価する
-    if (theme !== 'system') return;
+    if (theme !== 'system') {
+      return;
+    }
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = (e: MediaQueryListEvent) => apply(e.matches);
     mq.addEventListener('change', onChange);

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { Group as PanelGroup, Panel, Separator as PanelResizeHandle, type Layout } from 'react-resizable-panels';
-import { Settings, LogOut } from 'lucide-react';
 import { SObjectBrowser } from '../components/SObjectBrowser.js';
 import { SoqlEditor } from '../components/SoqlEditor.js';
 import { ResultTable } from '../components/ResultTable.js';
 import { LogViewer } from '../components/LogViewer.js';
+import { Header } from '../components/Header.js';
 import { showToast } from '../components/Toast.js';
 import { useAppStore } from '../store.js';
 import type { AppSettings, PaneSizes } from '@app/ipc-contract';
@@ -29,37 +29,6 @@ type BottomTab = 'result' | 'log';
 
 const BOTTOM_TABS: readonly BottomTab[] = ['result', 'log'];
 
-type Environment = 'production' | 'sandbox' | 'scratch' | 'custom';
-
-/**
- * loginUrl からおおまかな org 環境種別を推定する。
- * - login.salesforce.com → production
- * - test.salesforce.com → sandbox
- * - *.sandbox.my.salesforce.com → sandbox (My Domain 経由)
- * - *.scratch.my.salesforce.com / *.develop.my.salesforce.com → scratch
- * - それ以外 → custom (My Domain ベースの本番が多いが断定できない)
- */
-const detectEnvironment = (loginUrl: string): Environment => {
-  try {
-    const host = new URL(loginUrl).hostname.toLowerCase();
-    if (host === 'login.salesforce.com') return 'production';
-    if (host === 'test.salesforce.com') return 'sandbox';
-    if (host.endsWith('.sandbox.my.salesforce.com')) return 'sandbox';
-    if (host.endsWith('.scratch.my.salesforce.com')) return 'scratch';
-    if (host.endsWith('.develop.my.salesforce.com')) return 'scratch';
-    return 'custom';
-  } catch {
-    return 'custom';
-  }
-};
-
-const ENV_BADGE: Record<Environment, { label: string; className: string }> = {
-  production: { label: 'Production', className: 'bg-red-700 text-red-50 border border-red-500' },
-  sandbox:    { label: 'Sandbox',    className: 'bg-blue-700 text-blue-50 border border-blue-500' },
-  scratch:    { label: 'Scratch',    className: 'bg-purple-700 text-purple-50 border border-purple-500' },
-  custom:     { label: 'My Domain',  className: 'bg-slate-600 text-slate-200 border border-slate-500' },
-};
-
 interface Props {
   onDisconnect: () => void;
   onSettings: () => void;
@@ -82,7 +51,9 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
   const result = activeTab?.result ?? null;
 
   useEffect(() => {
-    if (result) setBottomTab('result');
+    if (result) {
+      setBottomTab('result');
+    }
   }, [result]);
 
   // ペインサイズ: settings.paneSizes から初期値を取り、ドラッグ後 IPC で永続化する。
@@ -93,14 +64,20 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
   const paneSizesRef = useRef<PaneSizes>(initialPaneSizes);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settingsRef = useRef<AppSettings | null>(settings);
-  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   const schedulePersist = useCallback((next: PaneSizes) => {
     paneSizesRef.current = next;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
     saveTimerRef.current = setTimeout(() => {
       const current = settingsRef.current;
-      if (!current) return;
+      if (!current) {
+        return;
+      }
       const updated: AppSettings = { ...current, paneSizes: next };
       setSettings(updated);
       // 保存失敗は致命的でない (起動時に再ロードできる)。toast を出すほどでもないのでログのみ。
@@ -113,27 +90,35 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
   // unmount 時に pending save を flush
   useEffect(() => {
     return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
     };
   }, []);
 
   // react-resizable-panels v4 の onLayoutChanged は Panel id をキーとしたサイズマップを返す
   const handleHorizontalLayout = useCallback((layout: Layout) => {
     const leftPanel = layout['main-left'];
-    if (typeof leftPanel !== 'number') return;
+    if (typeof leftPanel !== 'number') {
+      return;
+    }
     schedulePersist({ ...paneSizesRef.current, leftPanel });
   }, [schedulePersist]);
 
   const handleVerticalLayout = useCallback((layout: Layout) => {
     const soqlPanel = layout['main-soql'];
-    if (typeof soqlPanel !== 'number') return;
+    if (typeof soqlPanel !== 'number') {
+      return;
+    }
     schedulePersist({ ...paneSizesRef.current, soqlPanel });
   }, [schedulePersist]);
 
   const activeProfile = profiles.find(p => p.id === activeProfileId);
 
   const handleDisconnect = async () => {
-    if (!activeProfileId) return;
+    if (!activeProfileId) {
+      return;
+    }
     try {
       await window.sfx.disconnect(activeProfileId);
     } catch (e) {
@@ -153,61 +138,13 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
     return 'ログ';
   };
 
-  // 書き込み可モードは事故防止が最優先。ヘッダー帯ごと色を切り替えて視認性を上げる。
-  // 通常: slate-800、書き込み可: orange-800（バッジの強調と合わせて二重防御）。
-  const isWriteMode = activeProfile?.mode === 'readwrite';
-  const headerBg = isWriteMode ? 'bg-orange-800' : 'bg-slate-800';
-  const env = activeProfile ? detectEnvironment(activeProfile.loginUrl) : null;
-  const envBadge = env ? ENV_BADGE[env] : null;
-  const buttonHover = isWriteMode ? 'hover:bg-orange-700' : 'hover:bg-slate-700';
-
   return (
     <div className="flex flex-col h-screen bg-white dark:bg-slate-900">
-      {/* ヘッダー: アプリ名 / org 名 / 環境バッジ / モードバッジ / 設定・切断 */}
-      <header className={`flex items-center gap-3 px-4 py-2 text-white flex-shrink-0 ${headerBg}`}>
-        <span className="font-semibold text-sm">Salesforce Explorer</span>
-        {activeProfile && (
-          <>
-            <span className="text-slate-400 text-xs">|</span>
-            <span className="text-sm text-slate-100" title={activeProfile.loginUrl}>
-              {activeProfile.name}
-            </span>
-            {envBadge && (
-              <span
-                className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${envBadge.className}`}
-                title={`接続先: ${activeProfile.loginUrl}`}
-              >
-                {envBadge.label}
-              </span>
-            )}
-            <span
-              className={`text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
-                isWriteMode
-                  ? 'bg-orange-200 text-orange-900 border border-orange-300'
-                  : 'bg-slate-600 text-slate-200 border border-slate-500'
-              }`}
-            >
-              {isWriteMode ? '書き込み可' : '読み取り専用'}
-            </span>
-          </>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onSettings}
-            className={`flex items-center gap-1 text-xs text-slate-100 hover:text-white px-2 py-1 rounded ${buttonHover}`}
-          >
-            <Settings size={13} /> 設定
-          </button>
-          <button
-            type="button"
-            onClick={handleDisconnect}
-            className={`flex items-center gap-1 text-xs text-slate-100 hover:text-white px-2 py-1 rounded ${buttonHover}`}
-          >
-            <LogOut size={13} /> 切断
-          </button>
-        </div>
-      </header>
+      <Header
+        activeProfile={activeProfile}
+        onSettings={onSettings}
+        onDisconnect={handleDisconnect}
+      />
 
       {/* メインコンテンツ: 左右 + 中央上下の 2 段 PanelGroup */}
       <PanelGroup

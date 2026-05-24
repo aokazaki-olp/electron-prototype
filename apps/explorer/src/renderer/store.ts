@@ -14,6 +14,7 @@ import type {
   AppSettings,
   QueryResult,
   SoqlTabsState,
+  ExecutionMode,
 } from '@app/ipc-contract';
 
 export interface SoqlTab {
@@ -22,9 +23,24 @@ export interface SoqlTab {
   soql: string;
   result: QueryResult | null;
   fetchAll: boolean;
+  /** 省略時は `rest` 扱い (旧データ・テストフィクスチャ互換)。 */
+  executionMode?: ExecutionMode;
 }
 
-const DEFAULT_TAB: SoqlTab = { id: 'tab-1', name: 'クエリ 1', soql: '', result: null, fetchAll: false };
+const DEFAULT_TAB: SoqlTab = { id: 'tab-1', name: 'クエリ 1', soql: '', result: null, fetchAll: false, executionMode: 'rest' };
+
+// main から渡される LogEntry に seq があれば使う。テスト/旧データで欠ける場合は
+// renderer 側でフォールバックの単調増加 ID を発番する。React の key 重複を避けるのが目的。
+let fallbackLogSeq = 0;
+
+/**
+ * テスト専用: renderer 側 fallback seq カウンタをリセットする。
+ * test isolation のため beforeEach で呼ぶ想定。本番コードから呼ばない。
+ * @internal
+ */
+export const _resetFallbackLogSeqForTest = (): void => {
+  fallbackLogSeq = 0;
+};
 
 interface AppStore {
   // 設定
@@ -66,6 +82,7 @@ interface AppStore {
   setSobjectsLoading: (v: boolean) => void;
   setSelectedObjectDescribe: (d: SObjectDescribe | null) => void;
   setSoql: (s: string) => void;
+  setTabExecutionMode: (mode: ExecutionMode) => void;
   /**
    * SOQL を active tab に書き込み、実行を trigger する。
    * `suggestedName` が渡された場合、active tab の name が初期パターン `クエリ N` のときに限り
@@ -113,12 +130,16 @@ export const useAppStore = create<AppStore>((set) => ({
   setSelectedObjectDescribe: (selectedObjectDescribe) => set({ selectedObjectDescribe }),
   setSoql: (soql) => set((s) => {
     const active = s.tabs.find(t => t.id === s.activeTabId);
-    if (!active || active.soql === soql) return s;
+    if (!active || active.soql === soql) {
+      return s;
+    }
     return { tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, soql } : t) };
   }),
   setSoqlAndRun: (soql, suggestedName) => set((s) => {
     const active = s.tabs.find(t => t.id === s.activeTabId);
-    if (!active) return s;
+    if (!active) {
+      return s;
+    }
     // ユーザーがリネーム済みのタブは上書きしない（既定パターン `クエリ N` だけ自動命名対象）
     const isDefaultName = /^クエリ \d+$/.test(active.name);
     const newName = suggestedName && isDefaultName ? suggestedName : active.name;
@@ -131,16 +152,26 @@ export const useAppStore = create<AppStore>((set) => ({
   setTabFetchAll: (fetchAll) => set((s) => ({
     tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, fetchAll } : t),
   })),
+  setTabExecutionMode: (executionMode) => set((s) => ({
+    tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, executionMode } : t),
+  })),
   setQueryLoading: (queryLoading) => set({ queryLoading }),
   incrementRunTrigger: () => set((s) => ({ runTrigger: s.runTrigger + 1 })),
   appendLog: (entry) => set((s) => {
+    // seq が無ければ renderer フォールバック seq を付与する (React key の安定性のため)。
+    const e: LogEntry = entry.seq != null ? entry : { ...entry, seq: ++fallbackLogSeq };
     // 保持上限は AppSettings.logBufferSize に従う。0 で無制限、未取得時は 1000 にフォールバック。
     const cap = s.settings?.logBufferSize ?? 1000;
-    if (cap === 0) return { logs: [...s.logs, entry] };
+    if (cap === 0) {
+      return { logs: [...s.logs, e] };
+    }
     // 既存の (cap - 1) 件 + 新規 1 件 = cap 件で安定
-    return { logs: [...s.logs.slice(-(cap - 1)), entry] };
+    return { logs: [...s.logs.slice(-(cap - 1)), e] };
   }),
-  setLogs: (logs) => set({ logs }),
+  setLogs: (logs) => set({
+    // 取得済み logs (initial getRecentLogs 等) にも seq を補完しておく
+    logs: logs.map(l => l.seq != null ? l : { ...l, seq: ++fallbackLogSeq }),
+  }),
 
   setTabResult: (result) => set((s) => ({
     tabs: s.tabs.map(t => t.id === s.activeTabId ? { ...t, result } : t),
@@ -149,21 +180,26 @@ export const useAppStore = create<AppStore>((set) => ({
   addTab: () => set((s) => {
     const id = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const existingNums = s.tabs
-      .map(t => { const m = t.name.match(/^クエリ (\d+)$/); return m ? Number(m[1]) : 0; })
+      .map(t => {
+        const m = t.name.match(/^クエリ (\d+)$/);
+        return m ? Number(m[1]) : 0;
+      })
       .filter(n => n > 0);
     const n = existingNums.length > 0 ? Math.max(...existingNums) + 1 : s.tabs.length + 1;
-    const tab: SoqlTab = { id, name: `クエリ ${n}`, soql: '', result: null, fetchAll: false };
+    const tab: SoqlTab = { id, name: `クエリ ${n}`, soql: '', result: null, fetchAll: false, executionMode: 'rest' };
     return { tabs: [...s.tabs, tab], activeTabId: id };
   }),
 
   addTabWithContent: (name, soql) => set((s) => {
     const id = `tab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const tab: SoqlTab = { id, name, soql, result: null, fetchAll: false };
+    const tab: SoqlTab = { id, name, soql, result: null, fetchAll: false, executionMode: 'rest' };
     return { tabs: [...s.tabs, tab], activeTabId: id };
   }),
 
   closeTab: (id) => set((s) => {
-    if (s.tabs.length <= 1) return s;
+    if (s.tabs.length <= 1) {
+      return s;
+    }
     const idx = s.tabs.findIndex(t => t.id === id);
     const next = s.tabs.filter(t => t.id !== id);
     const nextActiveId = s.activeTabId === id
@@ -190,6 +226,6 @@ export const useAppStore = create<AppStore>((set) => ({
  * `result` フィールドは永続化対象から除外する（QueryResult はランタイムの揮発データ）。
  */
 export const persistTabs = (state: Pick<AppStore, 'tabs' | 'activeTabId'>): SoqlTabsState => ({
-  tabs: state.tabs.map(({ id, name, soql, fetchAll }) => ({ id, name, soql, fetchAll })),
+  tabs: state.tabs.map(({ id, name, soql, fetchAll, executionMode }) => ({ id, name, soql, fetchAll, executionMode })),
   activeTabId: state.activeTabId,
 });
