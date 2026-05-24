@@ -13,12 +13,11 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "composite": true,
     "noEmit": true
   },
   "include": [
-    "src/renderer/**/*.ts",
-    "src/renderer/**/*.tsx",
-    "src/ipc/**/*.ts"
+    "apps/explorer/src/renderer/**/*.ts",
+    "apps/explorer/src/renderer/**/*.tsx",
+    "packages/ipc-contract/src/**/*.ts"
   ]
 }

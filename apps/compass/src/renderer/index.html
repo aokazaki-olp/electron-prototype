@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <!-- CODING_RULES §11.2: default-src 'none' ベースで必要分のみ明示 -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" />
+    <title>Salesforce Compass</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+        background: #f8fafc;
+        color: #334155;
+        margin: 0;
+        padding: 48px;
+      }
+      h1 {
+        font-size: 24px;
+        margin: 0 0 16px;
+        color: #1e293b;
+      }
+      p {
+        font-size: 14px;
+        line-height: 1.6;
+        margin: 0 0 8px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        background: #e2e8f0;
+        color: #475569;
+        border-radius: 4px;
+        font-size: 12px;
+        margin-left: 8px;
+        vertical-align: middle;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Salesforce Compass<span class="badge">スケルトン</span></h1>
+    <p>このビルドはマルチビルド基盤の検証用スケルトンです。</p>
+    <p>UI は未実装。Explorer (フル版) のコードベースから派生して、複雑度を UI で吸収した非エンジニア向けビルドが入る予定の場所です。</p>
+  </body>
+</html>

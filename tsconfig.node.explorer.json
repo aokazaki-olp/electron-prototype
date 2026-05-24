@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "noImplicitAny": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true
+  },
+  "include": [
+    "apps/explorer/src/main/**/*.ts",
+    "apps/explorer/src/preload/**/*.ts",
+    "apps/explorer/electron.vite.config.ts",
+    "packages/ipc-contract/src/**/*.ts",
+    "packages/main-core/src/**/*.ts",
+    "packages/libs/src/**/*.ts",
+    "scripts/**/*.mjs"
+  ]
+}

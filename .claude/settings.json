@@ -1,0 +1,49 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/okazaki/projects/electron-prototype/**)",
+
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm install)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run typecheck)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm test)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run build:explorer)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run build:compass)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run test:e2e)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run dev)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run dev:compass)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run lint)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run gen-builder-yml)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run dist:explorer)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE npm run dist:compass)",
+
+      "Bash(npm ls)",
+      "Bash(npm info *)",
+      "Bash(npm view *)",
+      "Bash(npx vitest run)",
+      "Bash(npx vitest run *)",
+      "Bash(npx tsc -p *)",
+
+      "Bash(git status)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git ls-files)",
+      "Bash(git ls-files *)",
+      "Bash(git check-ignore *)",
+      "Bash(git stash)",
+      "Bash(git stash pop)",
+      "Bash(git branch)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git rm *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git -C \"C:/Users/okazaki/projects/electron-prototype\" *)",
+      "Bash(git -C \"c:/Users/okazaki/projects/electron-prototype\" *)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
+    ]
+  }
+}
