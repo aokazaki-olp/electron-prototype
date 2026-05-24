@@ -87,6 +87,31 @@ const withBearerAuth = (transport: Transport, token: string): Transport => ({
 });
 
 // ============================================================================
+// クエリパラメータ認証デコレータ
+// ============================================================================
+
+/**
+ * クエリパラメータ認証を Transport に追加する
+ * （API キーや認証ID が URL クエリで渡される API 向け）
+ *
+ * @param transport - ラップ対象 Transport
+ * @param params - URL に追加する認証用クエリパラメータ
+ * @returns 認証付き Transport
+ */
+const withQueryAuth = (transport: Transport, params: Record<string, string>): Transport => {
+  const authQuery = buildQueryString(params);
+  return {
+    fetch: (url: string, options?: FetchOptions) => {
+      if (!authQuery) {
+        return transport.fetch(url, options);
+      }
+      const separator = url.includes('?') ? '&' : '?';
+      return transport.fetch(url + separator + authQuery, options);
+    },
+  };
+};
+
+// ============================================================================
 // Client型定義
 // ============================================================================
 
@@ -150,10 +175,17 @@ const createClient = <TResponse = unknown>(
       headers: mergedHeaders,
     };
 
+    const hasRawBody = typeof request.rawBody === 'string';
     const hasBody = request.body != null;
     const canHaveBody = !/^(GET|HEAD|DELETE)$/.test(method);
 
-    if (hasBody) {
+    if (hasRawBody) {
+      if (canHaveBody) {
+        options.payload = request.rawBody;
+      } else {
+        log?.warn(`[HTTP] ⚠ ${method}リクエストでrawBodyが検出されました。無視されます。 url=${url}`);
+      }
+    } else if (hasBody) {
       if (canHaveBody) {
         options.payload = JSON.stringify(request.body);
         if (!HttpCore.hasHeader(mergedHeaders, 'Content-Type')) {
@@ -241,6 +273,7 @@ const createClient = <TResponse = unknown>(
 
 export const ApiClient = {
   withBearerAuth,
+  withQueryAuth,
   createClient,
 };
 

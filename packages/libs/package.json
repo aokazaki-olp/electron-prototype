@@ -10,6 +10,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "csv-parse": "^5",
+    "csv-stringify": "^6",
     "got": "^14"
   }
 }

@@ -30,6 +30,34 @@ export { deepFreeze } from './deepFreeze.js';
 export { SalesforceApiClient } from './SalesforceApiClient.js';
 export type { SalesforceClientOptions } from './SalesforceApiClient.js';
 
+export { SalesforceApiClientPlugins } from './plugins/salesforce.js';
+export type {
+  SoqlResult,
+  IngestOperation,
+  IngestState,
+  QueryOperation,
+  QueryState,
+  ColumnDelimiter,
+  LineEnding,
+  CreateIngestJobOptions,
+  IngestJobInfo,
+  ListIngestJobsOptions,
+  ListIngestJobsResponse,
+  CreateQueryJobOptions,
+  QueryJobInfo,
+  ListQueryJobsOptions,
+  ListQueryJobsResponse,
+  GetResultsOptions,
+  QueryResultsPage,
+  GetResultsParallelOptions,
+  WaitOptions,
+  ValidationError,
+  ValidationWarning,
+  ValidationResult,
+  BulkIngestPlugin,
+  BulkQueryPlugin,
+} from './plugins/salesforce.js';
+
 export { SalesforceAuth } from './SalesforceAuth.js';
 export type { JwtOptions, JwtDependencies, TokenResult, Signer } from './SalesforceAuth.js';
 
