@@ -4,6 +4,7 @@
  * CODING_RULES §7 / §11 の境界が renderer 側で守られていることを ranntime に検証する。
  */
 import { test, expect } from '../fixtures/electron.js';
+import { EXPECTED_API_KEYS } from '@app/ipc-contract';
 
 test.describe('CSP / プロセス境界', () => {
   test('CSP meta タグが default-src none ベースで設定されている', async ({ window }) => {
@@ -72,17 +73,11 @@ test.describe('CSP / プロセス境界', () => {
       const sfx = (window as unknown as { sfx?: Record<string, unknown> }).sfx;
       return sfx ? Object.keys(sfx).sort() : [];
     });
-    expect(keys).toEqual([
-      'bulkQuery',
-      'createRecord', 'deleteProfile', 'deleteRecord', 'describeObject', 'disconnect',
-      'exportCsv', 'exportLogFile', 'exportObjectDefinition', 'exportQueryExcel',
-      'getAuthState', 'getRecentLogs',
-      'listSObjects', 'loadColumnSizes', 'loadProfiles', 'loadSettings', 'loadTabs',
-      'onLogEntry', 'openSoqlFile',
-      'query', 'reauthForWrite', 'rendererLog',
-      'saveColumnSizes', 'saveProfile', 'saveSettings', 'saveSoqlFile', 'saveTabs',
-      'startOAuth', 'updateRecord',
-    ]);
+    // ipc-contract の EXPECTED_API_KEYS.explorer から期待値を導出する。
+    // preload で「公開キー集合」と「expected」を起動時 assertion (§11.3) で照合済みのため、
+    // ここをハードコードすると preload 変更時の手動同期が必要になる。
+    const expected = [...EXPECTED_API_KEYS.explorer].sort();
+    expect(keys).toEqual(expected);
   });
 
   test('SOQL に <script> を入れても XSS にならない (テキストとして扱われる)', async ({ window }) => {

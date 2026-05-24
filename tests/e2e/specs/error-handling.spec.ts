@@ -51,10 +51,12 @@ test.describe('エラーハンドリング — SOQL クエリ', () => {
     // 成功するレスポンスに切り替えて再実行
     await window.evaluate(async () => {
       const setup = (window as unknown as { __testSetup__?: (d: unknown) => Promise<void> }).__testSetup__;
-      if (setup) await setup({
-        queryError: null,
-        queryResult: { totalSize: 1, done: true, records: [{ Id: 'ok' }], fetchedCount: 1 },
-      });
+      if (setup) {
+        await setup({
+          queryError: null,
+          queryResult: { totalSize: 1, done: true, records: [{ Id: 'ok' }], fetchedCount: 1 },
+        });
+      }
     });
     // setupTestState は reload するが、ここでは部分更新のみで reload しない
     await main.runQueryButton.dispatchEvent('click');

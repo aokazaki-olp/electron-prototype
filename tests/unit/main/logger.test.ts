@@ -121,7 +121,9 @@ describe('maskSensitive', () => {
 describe('initLogger + getRecentLogs', () => {
   const flushHook = (level: string, data: unknown[]): void => {
     const hook = mockLog.hooks[0];
-    if (!hook) throw new Error('hook is not registered');
+    if (!hook) {
+      throw new Error('hook is not registered');
+    }
     hook({ date: new Date('2026-05-24T10:00:00Z'), level, data });
   };
 
@@ -151,7 +153,9 @@ describe('initLogger + getRecentLogs', () => {
   });
 
   it('broadcaster が throw しても hook 全体は壊れない', () => {
-    const broadcaster = vi.fn(() => { throw new Error('boom'); });
+    const broadcaster = vi.fn(() => {
+      throw new Error('boom');
+    });
     initLogger(broadcaster);
     expect(() => flushHook('info', ['ok'])).not.toThrow();
     expect(getRecentLogs()).toHaveLength(1);
@@ -228,7 +232,7 @@ describe('maskSensitive — 追加エッジケース', () => {
   });
 
   it('改行を含むテキストは行ごとに独立してマスク', () => {
-    const result = maskSensitive('access_token=a\nnormal text\nrefresh_token=b');
+    const result = maskSensitive('access_token=a\nnormal text\nrefresh_token=b') as string;
     const lines = result.split('\n');
     expect(lines[0]).toBe('access_token=***');
     expect(lines[1]).toBe('normal text');
@@ -239,5 +243,47 @@ describe('maskSensitive — 追加エッジケース', () => {
     const arr = ['access_token=secret'];
     expect(maskSensitive(arr)).toBe(arr); // 参照同一
     expect(maskSensitive(undefined)).toBeUndefined();
+  });
+
+  it('JWT 形式 (eyJ.... 三つドット区切り) も値部分としてマスク', () => {
+    // Salesforce の access_token は JWT 形式で配信される場合がある (3 セグメント・base64url)
+    const jwt = 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ.eyJzdWIiOiJ1c2VyIn0.SignaturePart';
+    const result = maskSensitive(`access_token=${jwt}&state=abc`) as string;
+    expect(result).toContain('access_token=***');
+    expect(result).not.toContain('eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ');
+    expect(result).not.toContain('SignaturePart');
+    expect(result).toContain('state=abc'); // state は機密でないため残る
+  });
+
+  it('Authorization ヘッダの Bearer トークンもマスク', () => {
+    const result = maskSensitive('Authorization: Bearer eyJabc.def.ghi xyz123') as string;
+    expect(result).toContain('Authorization=***');
+    expect(result).not.toContain('eyJabc');
+    expect(result).not.toContain('ghi xyz123');
+  });
+
+  it('URL encoded フォームの値もマスク (=%3D / 空白 は値の一部としてマスク対象に含まれる)', () => {
+    // SF の token エンドポイントは application/x-www-form-urlencoded を使う
+    const result = maskSensitive('access_token=abc%3Ddef%26extra&grant_type=password') as string;
+    expect(result).toContain('access_token=***');
+    expect(result).not.toContain('abc%3D');
+    expect(result).toContain('grant_type=password'); // grant_type は機密でない
+  });
+
+  it('refresh_token と access_token を JSON ボディに併記してもどちらもマスク', () => {
+    // OAuth token エンドポイントのレスポンス想定
+    const json = '{"access_token":"eyJabc.def","refresh_token":"5Aep861","instance_url":"https://x.com"}';
+    const result = maskSensitive(json) as string;
+    expect(result).toContain('access_token=***');
+    expect(result).toContain('refresh_token=***');
+    expect(result).not.toContain('eyJabc');
+    expect(result).not.toContain('5Aep861');
+    expect(result).toContain('instance_url'); // instance_url は公開情報なのでマスクしない
+  });
+
+  it('clientSecret も大文字小文字を問わずマスク (URL クエリ後続パラメータは残る)', () => {
+    // & は値の終端として扱われるので、後続の foo=bar は別パラメータとして残る
+    expect(maskSensitive('clientSecret=topsecret&foo=bar')).toBe('clientSecret=***&foo=bar');
+    expect(maskSensitive('ClientSecret: TopSecret')).toBe('ClientSecret=***');
   });
 });

@@ -8,16 +8,16 @@
  * 前提: npm run build:compass 済み (apps/compass/out/main/index.js が存在する)
  */
 import { test, expect } from '../fixtures/compass.js';
+import { EXPECTED_API_KEYS } from '@app/ipc-contract';
 
-const WRITE_API_KEYS = [
-  'createRecord', 'updateRecord', 'deleteRecord',
-  'saveProfile', 'deleteProfile', 'saveSettings',
-  'startOAuth', 'reauthForWrite', 'disconnect',
-  'saveSoqlFile', 'openSoqlFile', 'saveTabs', 'loadTabs',
-] as const;
+// Explorer にあって Compass にない = Compass で到達不能であるべきキー集合。
+// ipc-contract から差集合で導出することで、新しい書き込み系 API を Explorer に追加した際の
+// テスト追従漏れ (= regress 検出穴) を構造的に防ぐ。
+const compassKeys = new Set<string>(EXPECTED_API_KEYS.compass);
+const EXPLORER_ONLY_KEYS = EXPECTED_API_KEYS.explorer.filter(k => !compassKeys.has(k));
 
-test('Compass renderer は書き込み系 / OAuth 起点 / タブ永続化メソッドを露出しない', async ({ compassWindow }) => {
-  for (const key of WRITE_API_KEYS) {
+test('Compass renderer は Explorer 専用 API (書き込み・OAuth起点・タブ永続化・列幅・bulk・ログ保存) を露出しない', async ({ compassWindow }) => {
+  for (const key of EXPLORER_ONLY_KEYS) {
     const isUndefined = await compassWindow.evaluate(
       (k: string) => typeof (window as unknown as { sfx?: Record<string, unknown> }).sfx?.[k] === 'undefined',
       key,

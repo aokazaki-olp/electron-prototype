@@ -1,6 +1,8 @@
+// @vitest-environment happy-dom
 /**
  * Zustand ストアのユニットテスト。
- * DOM 環境不要。タブ管理ロジックと状態遷移を検証する。
+ * 他の renderer テストとプラグマを揃えて happy-dom で実行する
+ * (環境変数 globs を廃止したため明示する)。
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useAppStore, persistTabs } from '../../../apps/explorer/src/renderer/store.js';
@@ -251,7 +253,9 @@ describe('useAppStore — タブ管理エッジケース', () => {
 
   it('100 タブまで追加してもパフォーマンス劣化なく動く', () => {
     const { addTab } = useAppStore.getState();
-    for (let i = 0; i < 100; i++) addTab();
+    for (let i = 0; i < 100; i++) {
+      addTab();
+    }
     expect(useAppStore.getState().tabs).toHaveLength(101);
   });
 
@@ -360,7 +364,9 @@ describe('persistTabs — エッジケース', () => {
   });
 
   it('多くのタブをまとめて persist しても result は除外される', () => {
-    for (let i = 0; i < 5; i++) useAppStore.getState().addTab();
+    for (let i = 0; i < 5; i++) {
+      useAppStore.getState().addTab();
+    }
     useAppStore.getState().setTabResult(makeQueryResult({ fetchedCount: 99 }));
     const { tabs, activeTabId } = useAppStore.getState();
     const persisted = persistTabs({ tabs, activeTabId });

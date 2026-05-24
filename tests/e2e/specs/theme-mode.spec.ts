@@ -129,7 +129,9 @@ test.describe('B8 ダークモード — テーマ切替', () => {
     // (Tailwind の dark: 修飾子が compile されている前提)
     const mainBg = await window.locator('header').evaluate((el: Element) => {
       const parent = el.parentElement;
-      if (!parent) return '';
+      if (!parent) {
+        return '';
+      }
       return getComputedStyle(parent).backgroundColor;
     });
     // bg-slate-900 = rgb(15, 23, 42) 付近、bg-white = rgb(255, 255, 255)

@@ -47,7 +47,9 @@ vi.mock('electron-store', () => {
       }
       get<K extends keyof T>(key: K, fallback?: T[K]): T[K] {
         const v = (this.bucket as Record<string, unknown>)[key as string];
-        if (v === undefined) return (fallback ?? this.defaults[key]) as T[K];
+        if (v === undefined) {
+          return (fallback ?? this.defaults[key]) as T[K];
+        }
         return v as T[K];
       }
       set<K extends keyof T>(key: K, value: T[K]): void {

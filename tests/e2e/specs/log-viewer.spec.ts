@@ -81,3 +81,74 @@ test.describe('LogViewer', () => {
     await expect(main.logSearchInput).toHaveAttribute('aria-label', 'ログ検索');
   });
 });
+
+test.describe('LogViewer — 仮想化 / DOM 健全性 (regress 検出)', () => {
+  test.beforeEach(async ({ window }) => {
+    await setupTestState(window, {
+      profiles: [PROFILE],
+      activeProfileId: PROFILE.id,
+      sobjects: [],
+      describe: {},
+    });
+  });
+
+  // estimateSize=22px の仮定が崩れる (truncate が外れる / 長文で折返しが発生) と、
+  // 絶対配置で並べた行が縦に重なって描画され、UI が崩壊する。
+  // 仮想化が効いていない (= 全行 DOM 化) regress も同時に検出する。
+  test('大量行 (500件) 流入時も DOM 上のログ行は overscan 範囲に限定される', async ({ window }) => {
+    const main = new MainPagePOM(window);
+    await expect(main.header).toBeVisible({ timeout: 15_000 });
+    await main.logTab.dispatchEvent('click');
+
+    // rendererLog は ipcRenderer.send (fire-and-forget) なので 500 件でも数百 ms で発行終了
+    await window.evaluate(() => {
+      const sfx = (window as unknown as { sfx: { rendererLog: (l: string, t: string) => void } }).sfx;
+      for (let i = 0; i < 500; i++) {
+        sfx.rendererLog('info', `VLOG #${i}`);
+      }
+    });
+
+    // ログがバッファに反映されるまで少し待つ (IPC 往復 + setLogs)
+    await expect(window.locator('text=VLOG #0').first()).toBeVisible({ timeout: 5_000 });
+
+    // 表示されている VLOG 行を数える。仮想化が効いていれば 100 以下、効いていなければ 500。
+    const visibleCount = await window.evaluate(() => {
+      const matches = Array.from(document.querySelectorAll('span[title^="VLOG #"]'));
+      return matches.length;
+    });
+    expect(visibleCount).toBeGreaterThan(0);
+    expect(visibleCount).toBeLessThan(100);
+  });
+
+  test('長文ログでも 1 行に truncate され、隣の絶対配置行と高さが重ならない', async ({ window }) => {
+    const main = new MainPagePOM(window);
+    await expect(main.header).toBeVisible({ timeout: 15_000 });
+    await main.logTab.dispatchEvent('click');
+
+    // 長文 + 短文を混在させ、長文行の高さが 22px ± マージンに収まることを確認
+    await window.evaluate(() => {
+      const sfx = (window as unknown as { sfx: { rendererLog: (l: string, t: string) => void } }).sfx;
+      const long = 'TRUNC_MARKER_' + 'x'.repeat(800) + '_END';
+      sfx.rendererLog('info', long);
+      sfx.rendererLog('info', '短いログ A');
+      sfx.rendererLog('info', '短いログ B');
+    });
+
+    await expect(window.locator('span[title^="TRUNC_MARKER_"]').first()).toBeVisible({ timeout: 5_000 });
+
+    // 絶対配置で並ぶ各行の高さが estimateSize=22px から大きく外れていないこと。
+    // 折返しが発生していれば 40px+ に膨らみ、隣の行と重なる。
+    const heights = await window.evaluate(() => {
+      const rows = Array.from(
+        document.querySelectorAll('div[style*="position: absolute"]'),
+      ) as HTMLElement[];
+      return rows
+        .filter(el => el.textContent && (el.textContent.includes('TRUNC_MARKER_') || el.textContent.includes('短いログ')))
+        .map(el => el.getBoundingClientRect().height);
+    });
+    expect(heights.length).toBeGreaterThan(0);
+    for (const h of heights) {
+      expect(h, '各ログ行の高さが estimateSize=22px から大きく外れている (truncate 崩れの可能性)').toBeLessThan(28);
+    }
+  });
+});

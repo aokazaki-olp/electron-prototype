@@ -1,6 +1,11 @@
 /**
  * window.sfx の完全モック。
  * renderer テストで window.sfx を差し替えるために使う。
+ *
+ * @remarks 戻り型を `SalesforceExplorerApi` で固定しているため、contract に新メソッドが
+ *   追加されてこの mock が追従漏れすると **コンパイルエラー** で検出される。
+ *   さらに contract.ts 側で `EXPECTED_API_KEYS.explorer` が SalesforceExplorerApi のキー
+ *   集合を完全網羅していることも型レベルで保証されている。
  */
 import { vi } from 'vitest';
 import type { SalesforceExplorerApi } from '@app/ipc-contract';

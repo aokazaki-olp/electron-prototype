@@ -52,8 +52,10 @@ describe('soqlCompletionSource', () => {
     });
     const ctx = makeContext('SELECT Id FROM Acc', 18);
     const result = soqlCompletionSource(ctx);
-    expect(result).not.toBeNull();
-    const labels = result!.options.map(o => o.label);
+    if (result == null) {
+      throw new Error('completion result was null');
+    }
+    const labels = result.options.map(o => o.label);
     expect(labels).toContain('Account');
     expect(labels).toContain('Contact');
   });
@@ -71,8 +73,10 @@ describe('soqlCompletionSource', () => {
     });
     const ctx = makeContext('SELECT An', 9);
     const result = soqlCompletionSource(ctx);
-    expect(result).not.toBeNull();
-    const labels = result!.options.map(o => o.label);
+    if (result == null) {
+      throw new Error('completion result was null');
+    }
+    const labels = result.options.map(o => o.label);
     expect(labels).toContain('Id');
     expect(labels).toContain('Name');
     expect(labels).toContain('AnnualRevenue');
@@ -81,8 +85,10 @@ describe('soqlCompletionSource', () => {
   it('予約語 (SELECT, FROM, WHERE) は常に候補に含まれる', () => {
     const ctx = makeContext('SE', 2);
     const result = soqlCompletionSource(ctx);
-    expect(result).not.toBeNull();
-    const labels = result!.options.map(o => o.label);
+    if (result == null) {
+      throw new Error('completion result was null');
+    }
+    const labels = result.options.map(o => o.label);
     expect(labels).toContain('SELECT');
     expect(labels).toContain('FROM');
     expect(labels).toContain('WHERE');
@@ -91,8 +97,10 @@ describe('soqlCompletionSource', () => {
   it('WHERE の後では日付リテラル (TODAY 等) が候補に含まれる', () => {
     const ctx = makeContext('SELECT Id FROM Account WHERE CreatedDate = TO', 45);
     const result = soqlCompletionSource(ctx);
-    expect(result).not.toBeNull();
-    const labels = result!.options.map(o => o.label);
+    if (result == null) {
+      throw new Error('completion result was null');
+    }
+    const labels = result.options.map(o => o.label);
     expect(labels).toContain('TODAY');
     expect(labels).toContain('YESTERDAY');
   });
@@ -100,8 +108,10 @@ describe('soqlCompletionSource', () => {
   it('集約関数 (COUNT, MAX) は SELECT 句で候補に含まれる', () => {
     const ctx = makeContext('SELECT CO', 9);
     const result = soqlCompletionSource(ctx);
-    expect(result).not.toBeNull();
-    const labels = result!.options.map(o => o.label);
+    if (result == null) {
+      throw new Error('completion result was null');
+    }
+    const labels = result.options.map(o => o.label);
     expect(labels).toContain('COUNT');
     expect(labels).toContain('MAX');
   });

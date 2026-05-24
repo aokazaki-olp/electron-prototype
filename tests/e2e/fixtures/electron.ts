@@ -23,8 +23,12 @@ const CDP_PORT = 19_222;
 
 const getElectronBin = (): string => {
   const base = path.join(APP_ROOT, 'node_modules/electron/dist');
-  if (process.platform === 'win32') return path.join(base, 'electron.exe');
-  if (process.platform === 'darwin') return path.join(base, 'Electron.app/Contents/MacOS/Electron');
+  if (process.platform === 'win32') {
+    return path.join(base, 'electron.exe');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(base, 'Electron.app/Contents/MacOS/Electron');
+  }
   return path.join(base, 'electron');
 };
 
@@ -55,8 +59,13 @@ export const test = base.extend<ElectronFixtures>({
     for (let i = 0; i < 33; i++) {
       try {
         const res = await fetch(`http://localhost:${CDP_PORT}/json/version`);
-        if (res.ok) { cdpReady = true; break; }
-      } catch { /* まだ起動中 */ }
+        if (res.ok) {
+          cdpReady = true;
+          break;
+        }
+      } catch {
+        /* まだ起動中 */
+      }
       await sleep(300);
     }
     if (!cdpReady) {
@@ -74,7 +83,11 @@ export const test = base.extend<ElectronFixtures>({
       sleep(2000).then(() => false),
     ]);
     if (!exited) {
-      try { child.kill('SIGKILL'); } catch { /* already dead */ }
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        /* already dead */
+      }
       await sleep(500);
     }
     // ポート開放確認: 次の spec の起動前に 19222 が listen 解除されるのを待つ
@@ -148,8 +161,12 @@ export const pressKey = (page: Page, key: string): Promise<void> =>
  */
 export const safeCheck = (locator: Locator, checked = true): Promise<void> =>
   locator.evaluate((el, c) => {
-    if (!(el instanceof HTMLInputElement)) return;
-    if (el.checked !== c) el.click();
+    if (!(el instanceof HTMLInputElement)) {
+      return;
+    }
+    if (el.checked !== c) {
+      el.click();
+    }
   }, checked);
 
 /**
@@ -193,7 +210,9 @@ export const setupTestState = async (
 ): Promise<void> => {
   await page.evaluate(async (payload: unknown) => {
     const setup = (window as unknown as { __testSetup__?: (d: unknown) => Promise<void> }).__testSetup__;
-    if (!setup) throw new Error('__testSetup__ が見つかりません。テストモードで起動されていません。');
+    if (!setup) {
+      throw new Error('__testSetup__ が見つかりません。テストモードで起動されていません。');
+    }
     await setup(payload);
   }, data as unknown);
   await page.reload();
@@ -238,12 +257,18 @@ export const loadTestEnv = (): Record<string, string> => {
     const env: Record<string, string> = {};
     for (const line of content.split('\n')) {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) continue;
+      if (!trimmed || trimmed.startsWith('#')) {
+        continue;
+      }
       const eqIdx = trimmed.indexOf('=');
-      if (eqIdx < 0) continue;
+      if (eqIdx < 0) {
+        continue;
+      }
       const key = trimmed.slice(0, eqIdx).trim();
       const value = trimmed.slice(eqIdx + 1).trim();
-      if (value) env[key] = value;
+      if (value) {
+        env[key] = value;
+      }
     }
     return env;
   } catch {

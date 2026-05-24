@@ -56,6 +56,79 @@ test.describe('A1 ペインリサイズ — DOM 構造', () => {
   });
 });
 
+test.describe('A1 ペインリサイズ — % vs px 解釈 (regress 検出)', () => {
+  // 過去、Panel の minSize/maxSize/defaultSize を "8" のような数値 (= px) で
+  // 指定すると react-resizable-panels が px として解釈し、defaultSize="18%" を
+  // 上書きして極端な幅になる regress があった。
+  // ここでは「DOM 上で観測される panel 比率が、定義した % レンジに収まっている」ことを
+  // 直接 assert することで、設定が px に流出した場合に即検出する。
+  test.beforeEach(async ({ window }) => {
+    await setupTestState(window, {
+      profiles: [PROFILE],
+      activeProfileId: PROFILE.id,
+      sobjects: [],
+      describe: {},
+    });
+    const main = new MainPagePOM(window);
+    await expect(main.header).toBeVisible({ timeout: 15_000 });
+  });
+
+  test('main-left の幅は 親グループ の 8〜60% に収まる (minSize/maxSize は %)', async ({ window }) => {
+    const ratio = await window.evaluate(() => {
+      const panels = document.querySelectorAll('[data-panel]');
+      // 最初の data-panel が main-left (水平 group の最初の Panel)
+      const left = panels[0] as HTMLElement | undefined;
+      if (!left) {
+        return null;
+      }
+      const parent = left.parentElement as HTMLElement | null;
+      if (!parent) {
+        return null;
+      }
+      const lw = left.getBoundingClientRect().width;
+      const pw = parent.getBoundingClientRect().width;
+      return pw > 0 ? lw / pw : null;
+    });
+    if (ratio == null) {
+      throw new Error('ratio could not be measured');
+    }
+    // 定義: defaultSize=18%, minSize=8%, maxSize=60%。px 流出時はこのレンジを大きく外れる。
+    expect(ratio).toBeGreaterThan(0.08);
+    expect(ratio).toBeLessThan(0.60);
+    // 初期値 18% 付近 ±6% (タイトルバー等のレイアウト誤差を許容)
+    expect(ratio).toBeGreaterThan(0.12);
+    expect(ratio).toBeLessThan(0.24);
+  });
+
+  test('main-soql の高さは 親グループ の 10〜90% に収まる (minSize/maxSize は %)', async ({ window }) => {
+    const ratio = await window.evaluate(() => {
+      // 水平 group の 2 番目 Panel が main-right、その中に vertical group があり
+      // その最初の data-panel が main-soql。data-panel を順序依存で拾う。
+      const panels = Array.from(document.querySelectorAll('[data-panel]')) as HTMLElement[];
+      // panels[0]=main-left, panels[1]=main-right, panels[2]=main-soql, panels[3]=main-bottom
+      const soql = panels[2];
+      if (!soql) {
+        return null;
+      }
+      const parent = soql.parentElement as HTMLElement | null;
+      if (!parent) {
+        return null;
+      }
+      const sh = soql.getBoundingClientRect().height;
+      const ph = parent.getBoundingClientRect().height;
+      return ph > 0 ? sh / ph : null;
+    });
+    if (ratio == null) {
+      throw new Error('ratio could not be measured');
+    }
+    expect(ratio).toBeGreaterThan(0.10);
+    expect(ratio).toBeLessThan(0.90);
+    // 初期値 40% 付近 ±10%
+    expect(ratio).toBeGreaterThan(0.30);
+    expect(ratio).toBeLessThan(0.50);
+  });
+});
+
 test.describe('A1 ペインリサイズ — 永続化', () => {
   test('paneSizes 変更 → reload 後も復元される', async ({ window }) => {
     await setupTestState(window, {

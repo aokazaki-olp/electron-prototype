@@ -114,12 +114,14 @@ test.describe('永続化 — プロファイル', () => {
 
     await window.evaluate(async () => {
       const setup = (window as unknown as { __testSetup__?: (d: unknown) => Promise<void> }).__testSetup__;
-      if (setup) await setup({
-        profiles: [
-          { id: 'p1', name: '永続化テスト', loginUrl: 'https://login.salesforce.com', clientId: 'k', mode: 'readonly', writeSessionTimeoutMin: 15 },
-          { id: 'p2', name: '追加プロファイル', loginUrl: 'https://login.salesforce.com', clientId: 'k2', mode: 'readonly', writeSessionTimeoutMin: 15 },
-        ],
-      });
+      if (setup) {
+        await setup({
+          profiles: [
+            { id: 'p1', name: '永続化テスト', loginUrl: 'https://login.salesforce.com', clientId: 'k', mode: 'readonly', writeSessionTimeoutMin: 15 },
+            { id: 'p2', name: '追加プロファイル', loginUrl: 'https://login.salesforce.com', clientId: 'k2', mode: 'readonly', writeSessionTimeoutMin: 15 },
+          ],
+        });
+      }
     });
 
     await window.reload();

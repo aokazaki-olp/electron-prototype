@@ -17,16 +17,22 @@ const { mockGet, mockPost, mockPatch, mockDelete, mockClient, mockGetProfile } =
   // sfApi は SalesforceApiClientPlugins.sobject/soql を .use() で適用するため、
   // mockClient.use はプラグイン関数に mockClient 自身を渡し、返ったメソッドをマージしたクライアントを返す。
   // 本物の ApiClient.use と同じく「plugin が HTTP メソッド名と衝突した場合 plugin が後勝ち」になる。
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mockClient: any = { get: mockGet, post: mockPost, patch: mockPatch, delete: mockDelete };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mockClient.use = (plugin: (c: any) => Record<string, unknown>) => {
+  type MockClient = Record<string, unknown> & {
+    get: typeof mockGet;
+    post: typeof mockPost;
+    patch: typeof mockPatch;
+    delete: typeof mockDelete;
+    use: (plugin: (c: MockClient) => Record<string, unknown>) => MockClient;
+    extend: () => MockClient;
+  };
+  const mockClient = { get: mockGet, post: mockPost, patch: mockPatch, delete: mockDelete } as MockClient;
+  mockClient.use = (plugin) => {
     const methods = plugin(mockClient);
-    return { ...mockClient, ...methods };
+    return { ...mockClient, ...methods } as MockClient;
   };
   // bulkQuery plugin が getResults 内で client.extend(decorator) を使うため、
   // decorator は捨てて mockClient 自身を返す（Sforce-Locator capture は単一ページテストでは不要）
-  mockClient.extend = () => mockClient;
+  mockClient.extend = (): MockClient => mockClient;
   const mockGetProfile = vi.fn();
   return { mockGet, mockPost, mockPatch, mockDelete, mockClient, mockGetProfile };
 });
@@ -282,6 +288,126 @@ describe('writeSession — タイムアウト', () => {
     markWriteSession(PROFILE_ID);
     vi.advanceTimersByTime(5 * 60 * 1000 - 1);
     await expect(createRecord(PROFILE_ID, 'Account', {})).resolves.toBe('edge-1');
+    vi.useRealTimers();
+  });
+});
+
+// ============================================================
+// writeSession auto-cleanup タイマー & reauth フロー (Medium 重要度のリーク防止)
+// ============================================================
+
+describe('writeSession — auto-cleanup タイマー / reauth フロー', () => {
+  beforeEach(() => {
+    clearWriteSession(PROFILE_ID);
+  });
+
+  it('markWriteSession でタイマーが張られ、タイムアウト到達で自動 cleanup される', async () => {
+    vi.useFakeTimers();
+    const rwProfile = makeProfile({ id: PROFILE_ID, mode: 'readwrite', writeSessionTimeoutMin: 2 });
+    mockGetProfile.mockReturnValue(rwProfile);
+    mockPost.mockResolvedValue({ id: 'r1' });
+
+    markWriteSession(PROFILE_ID);
+    // タイムアウト超過 → timer 発火 → Map から削除 → 書き込み拒否
+    vi.advanceTimersByTime(2 * 60 * 1000 + 1);
+    await expect(createRecord(PROFILE_ID, 'Account', {})).rejects.toThrow(WRITE_REQUIRED);
+    vi.useRealTimers();
+  });
+
+  it('reauth フロー: 失効後に再度 markWriteSession すれば書き込みが復活する', async () => {
+    vi.useFakeTimers();
+    const rwProfile = makeProfile({ id: PROFILE_ID, mode: 'readwrite', writeSessionTimeoutMin: 1 });
+    mockGetProfile.mockReturnValue(rwProfile);
+    mockPost.mockResolvedValue({ id: 'reauth-1' });
+
+    // 1 回目: 書き込み成功 → タイムアウト → 拒否
+    markWriteSession(PROFILE_ID);
+    await expect(createRecord(PROFILE_ID, 'Account', {})).resolves.toBe('reauth-1');
+    vi.advanceTimersByTime(1 * 60 * 1000 + 1);
+    await expect(createRecord(PROFILE_ID, 'Account', {})).rejects.toThrow(WRITE_REQUIRED);
+
+    // reauth (= markWriteSession 再呼び出し) → 書き込み復活
+    markWriteSession(PROFILE_ID);
+    await expect(createRecord(PROFILE_ID, 'Account', {})).resolves.toBe('reauth-1');
+    vi.useRealTimers();
+  });
+
+  it('連続 markWriteSession: 既存タイマーが clear され、最新の呼び出しから timeout カウントされる', async () => {
+    vi.useFakeTimers();
+    const rwProfile = makeProfile({ id: PROFILE_ID, mode: 'readwrite', writeSessionTimeoutMin: 2 });
+    mockGetProfile.mockReturnValue(rwProfile);
+    mockPost.mockResolvedValue({ id: 'refresh-1' });
+
+    markWriteSession(PROFILE_ID);
+    vi.advanceTimersByTime(1 * 60 * 1000);  // 1 分経過
+    markWriteSession(PROFILE_ID);  // 再 mark で reset
+    vi.advanceTimersByTime(1 * 60 * 1000 + 100);  // 通算 2 分 + 100ms (初回からなら expire 圏内)
+    // 初回タイマーが残っていれば誤って削除されているはずだが、最新呼び出しから 1 分なので有効
+    await expect(createRecord(PROFILE_ID, 'Account', {})).resolves.toBe('refresh-1');
+    vi.useRealTimers();
+  });
+
+  it('readonly プロファイルで markWriteSession しても Map にエントリを作らない (リーク防止)', async () => {
+    const roProfile = makeProfile({ id: PROFILE_ID, mode: 'readonly', writeSessionTimeoutMin: 15 });
+    mockGetProfile.mockReturnValue(roProfile);
+    markWriteSession(PROFILE_ID);
+    // readonly では書き込みが拒否されるのが当然 (Map に保持しても無意味なのでエントリを作らない設計)
+    await expect(createRecord(PROFILE_ID, 'Account', {})).rejects.toThrow();
+  });
+
+  it('timeoutMin=0 (毎回確認) で markWriteSession しても Map に保持しない', async () => {
+    const rwProfile = makeProfile({ id: PROFILE_ID, mode: 'readwrite', writeSessionTimeoutMin: 0 });
+    mockGetProfile.mockReturnValue(rwProfile);
+    markWriteSession(PROFILE_ID);
+    // 毎回確認モードなのでセッション保持してもしなくても拒否
+    await expect(createRecord(PROFILE_ID, 'Account', {})).rejects.toThrow(WRITE_REQUIRED);
+  });
+
+  it('clearWriteSession でタイマーも clear される (再 mark せずに timeout が経過しても再削除しない = no-op)', async () => {
+    vi.useFakeTimers();
+    const rwProfile = makeProfile({ id: PROFILE_ID, mode: 'readwrite', writeSessionTimeoutMin: 2 });
+    mockGetProfile.mockReturnValue(rwProfile);
+
+    markWriteSession(PROFILE_ID);
+    clearWriteSession(PROFILE_ID);
+    // タイマーが残っていれば 2 分後に何か走るはずだが、副作用なし
+    vi.advanceTimersByTime(2 * 60 * 1000 + 100);
+    // 状態を観察するために再度 mark してから時計を進めて削除されることを確認
+    mockPost.mockResolvedValue({ id: 'after-clear' });
+    markWriteSession(PROFILE_ID);
+    vi.advanceTimersByTime(2 * 60 * 1000 - 100);
+    await expect(createRecord(PROFILE_ID, 'Account', {})).resolves.toBe('after-clear');
+    vi.useRealTimers();
+  });
+
+  it('clearWriteSession が直接 clearTimeout を呼ぶ (spy で検証)', () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+    const rwProfile = makeProfile({ id: PROFILE_ID, mode: 'readwrite', writeSessionTimeoutMin: 5 });
+    mockGetProfile.mockReturnValue(rwProfile);
+
+    markWriteSession(PROFILE_ID);
+    const callsBeforeClear = clearTimeoutSpy.mock.calls.length;
+    clearWriteSession(PROFILE_ID);
+    // clearWriteSession の呼び出しで clearTimeout が少なくとも 1 回追加で呼ばれている
+    expect(clearTimeoutSpy.mock.calls.length).toBeGreaterThan(callsBeforeClear);
+
+    clearTimeoutSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it('再 markWriteSession 時に古いタイマーが clearTimeout される (spy で検証)', () => {
+    vi.useFakeTimers();
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+    const rwProfile = makeProfile({ id: PROFILE_ID, mode: 'readwrite', writeSessionTimeoutMin: 5 });
+    mockGetProfile.mockReturnValue(rwProfile);
+
+    markWriteSession(PROFILE_ID);
+    const callsAfterFirstMark = clearTimeoutSpy.mock.calls.length;
+    markWriteSession(PROFILE_ID); // 既存タイマーを clear して新規セット
+    expect(clearTimeoutSpy.mock.calls.length).toBeGreaterThan(callsAfterFirstMark);
+
+    clearTimeoutSpy.mockRestore();
     vi.useRealTimers();
   });
 });

@@ -143,7 +143,9 @@ export class MainPagePOM {
     // testMock 経由でセットすることを推奨する。
     await this.page.evaluate((t: string) => {
       const ed = document.querySelector('.cm-content');
-      if (ed) ed.textContent = t;
+      if (ed) {
+        ed.textContent = t;
+      }
     }, text);
   }
 }

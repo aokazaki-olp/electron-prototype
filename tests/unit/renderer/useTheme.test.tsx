@@ -77,7 +77,9 @@ describe('useTheme', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(false);
 
     // OS 側が dark に切り替わる
-    listeners.forEach(fn => fn({ matches: true } as MediaQueryListEvent));
+    for (const fn of listeners) {
+      fn({ matches: true } as MediaQueryListEvent);
+    }
     expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 

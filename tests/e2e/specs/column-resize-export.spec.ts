@@ -185,6 +185,8 @@ test.describe('B9 列幅 resize', () => {
       els.map(el => Number.parseInt((el as HTMLElement).style.width || '0', 10)),
     );
     expect(widths.length).toBeGreaterThan(0);
-    for (const w of widths) expect(w).toBeGreaterThan(0);
+    for (const w of widths) {
+      expect(w).toBeGreaterThan(0);
+    }
   });
 });

@@ -17,8 +17,12 @@ const CDP_PORT = 19_223; // Explorer fixture と別ポート
 
 const getElectronBin = (): string => {
   const base = path.join(APP_ROOT, 'node_modules/electron/dist');
-  if (process.platform === 'win32') return path.join(base, 'electron.exe');
-  if (process.platform === 'darwin') return path.join(base, 'Electron.app/Contents/MacOS/Electron');
+  if (process.platform === 'win32') {
+    return path.join(base, 'electron.exe');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(base, 'Electron.app/Contents/MacOS/Electron');
+  }
   return path.join(base, 'electron');
 };
 
@@ -46,8 +50,13 @@ export const test = base.extend<CompassFixtures>({
     for (let i = 0; i < 33; i++) {
       try {
         const res = await fetch(`http://localhost:${CDP_PORT}/json/version`);
-        if (res.ok) { cdpReady = true; break; }
-      } catch { /* まだ起動中 */ }
+        if (res.ok) {
+          cdpReady = true;
+          break;
+        }
+      } catch {
+        /* まだ起動中 */
+      }
       await sleep(300);
     }
     if (!cdpReady) {
@@ -63,7 +72,11 @@ export const test = base.extend<CompassFixtures>({
       sleep(2000).then(() => false),
     ]);
     if (!exited) {
-      try { child.kill('SIGKILL'); } catch { /* already dead */ }
+      try {
+        child.kill('SIGKILL');
+      } catch {
+        /* already dead */
+      }
       await sleep(500);
     }
     for (let i = 0; i < 20; i++) {
