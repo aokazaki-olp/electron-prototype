@@ -34,7 +34,7 @@ test.describe('CSV エクスポート — ダイアログ', () => {
     await main.runQueryButton.dispatchEvent('click');
     await expect(window.locator('text=/1件取得/')).toBeVisible({ timeout: 5_000 });
 
-    await main.exportCsvButton.dispatchEvent('click');
+    await main.openExportMenuAndPick('csv-detail');
     await expect(main.csvExportDialog).toBeVisible({ timeout: 3_000 });
     await expect(window.locator('text=/BOM を付与する/')).toBeVisible();
   });
@@ -46,7 +46,7 @@ test.describe('CSV エクスポート — ダイアログ', () => {
     await main.runQueryButton.dispatchEvent('click');
     await expect(window.locator('text=/1件取得/')).toBeVisible({ timeout: 5_000 });
 
-    await main.exportCsvButton.dispatchEvent('click');
+    await main.openExportMenuAndPick('csv-detail');
     await expect(main.csvExportDialog).toBeVisible();
 
     await pressKey(window, 'Escape');
@@ -60,7 +60,7 @@ test.describe('CSV エクスポート — ダイアログ', () => {
     await main.runQueryButton.dispatchEvent('click');
     await expect(window.locator('text=/1件取得/')).toBeVisible({ timeout: 5_000 });
 
-    await main.exportCsvButton.dispatchEvent('click');
+    await main.openExportMenuAndPick('csv-detail');
     await expect(main.csvExportDialog).toBeVisible();
 
     // オーバーレイ (背景の半透明 div) をクリック。dialog 自体ではなく外側。
@@ -75,7 +75,7 @@ test.describe('CSV エクスポート — ダイアログ', () => {
     await main.runQueryButton.dispatchEvent('click');
     await expect(window.locator('text=/1件取得/')).toBeVisible({ timeout: 5_000 });
 
-    await main.exportCsvButton.dispatchEvent('click');
+    await main.openExportMenuAndPick('csv-detail');
     await main.csvExportCancelButton.dispatchEvent('click');
     await expect(main.csvExportDialog).not.toBeVisible({ timeout: 3_000 });
   });
@@ -87,7 +87,7 @@ test.describe('CSV エクスポート — ダイアログ', () => {
     await main.runQueryButton.dispatchEvent('click');
     await expect(window.locator('text=/1件取得/')).toBeVisible({ timeout: 5_000 });
 
-    await main.exportCsvButton.dispatchEvent('click');
+    await main.openExportMenuAndPick('csv-detail');
     await expect(main.csvExportBomCheckbox).toBeChecked();
     await safeCheck(main.csvExportBomCheckbox, false);
     await expect(main.csvExportBomCheckbox).not.toBeChecked();
@@ -100,7 +100,7 @@ test.describe('CSV エクスポート — ダイアログ', () => {
     await main.runQueryButton.dispatchEvent('click');
     await expect(window.locator('text=/1件取得/')).toBeVisible({ timeout: 5_000 });
 
-    await main.exportCsvButton.dispatchEvent('click');
+    await main.openExportMenuAndPick('csv-detail');
     const lfRadio = window.getByRole('radio', { name: 'LF', exact: true });
     const crlfRadio = window.getByRole('radio', { name: 'CRLF', exact: true });
     await expect(crlfRadio).toBeChecked();
@@ -117,7 +117,7 @@ test.describe('CSV エクスポート — ダイアログ', () => {
     await main.runQueryButton.dispatchEvent('click');
     await expect(window.locator('text=/1件取得/')).toBeVisible({ timeout: 5_000 });
 
-    await main.exportCsvButton.dispatchEvent('click');
+    await main.openExportMenuAndPick('csv-detail');
     const dlg = main.csvExportDialog;
     await expect(dlg).toHaveAttribute('aria-modal', 'true');
     await expect(dlg).toHaveAttribute('aria-labelledby', 'csv-export-title');

@@ -84,7 +84,7 @@ test.describe('キーボードショートカット', () => {
     await main.runQueryButton.dispatchEvent('click');
     await expect(window.locator('text=/1件取得/')).toBeVisible({ timeout: 5_000 });
 
-    await main.exportCsvButton.dispatchEvent('click');
+    await main.openExportMenuAndPick('csv-detail');
     await expect(main.csvExportDialog).toBeVisible();
 
     await pressKey(window, 'Escape');

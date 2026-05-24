@@ -24,8 +24,10 @@ export class MainPagePOM {
   readonly resultTab: Locator;
   readonly logTab: Locator;
   readonly resultFilterInput: Locator;
-  readonly exportCsvButton: Locator;
-  readonly exportExcelButton: Locator;
+  readonly exportMenuButton: Locator;
+  readonly quickCsvMenuItem: Locator;
+  readonly csvDetailMenuItem: Locator;
+  readonly excelMenuItem: Locator;
   readonly csvExportDialog: Locator;
   readonly csvExportBomCheckbox: Locator;
   readonly csvExportSaveButton: Locator;
@@ -55,8 +57,11 @@ export class MainPagePOM {
     this.resultTab = page.getByRole('tab', { name: /結果/ });
     this.logTab = page.getByRole('tab', { name: 'ログ' });
     this.resultFilterInput = page.getByLabel('結果テーブルをフィルタ');
-    this.exportCsvButton = page.getByRole('button', { name: /^.*CSV$/ });
-    this.exportExcelButton = page.getByRole('button', { name: /^.*Excel$/ });
+    // Commit 4 でエクスポート系は dropdown に統合されたため、トリガーボタンとメニュー項目を別々に保持する
+    this.exportMenuButton = page.getByRole('button', { name: /エクスポート/ });
+    this.quickCsvMenuItem = page.getByRole('menuitem', { name: /CSV \(BOM/ });
+    this.csvDetailMenuItem = page.getByRole('menuitem', { name: /CSV…/ });
+    this.excelMenuItem = page.getByRole('menuitem', { name: /Excel/ });
     this.csvExportDialog = page.getByRole('dialog', { name: 'CSV エクスポート設定' });
     this.csvExportBomCheckbox = page.locator('label').filter({ hasText: 'BOM を付与する' }).locator('input[type="checkbox"]');
     this.csvExportSaveButton = this.csvExportDialog.getByRole('button', { name: '保存' });
@@ -104,6 +109,19 @@ export class MainPagePOM {
 
   async isVisible(): Promise<boolean> {
     return this.header.isVisible();
+  }
+
+  /**
+   * エクスポート dropdown を開き、指定のメニュー項目をクリックするヘルパー。
+   * 「メニューを開く → 項目クリック」の 2 段階を 1 呼び出しでまとめる。
+   */
+  async openExportMenuAndPick(item: 'csv-quick' | 'csv-detail' | 'excel'): Promise<void> {
+    await this.exportMenuButton.dispatchEvent('click');
+    const target =
+      item === 'csv-quick' ? this.quickCsvMenuItem :
+      item === 'csv-detail' ? this.csvDetailMenuItem :
+      this.excelMenuItem;
+    await target.dispatchEvent('click');
   }
 
   /** sObject を1回クリック（シングルクリック） */
