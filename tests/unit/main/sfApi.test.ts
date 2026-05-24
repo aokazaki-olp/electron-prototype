@@ -14,7 +14,16 @@ const { mockGet, mockPost, mockPatch, mockDelete, mockClient, mockGetProfile } =
   const mockPost = vi.fn();
   const mockPatch = vi.fn();
   const mockDelete = vi.fn();
-  const mockClient = { get: mockGet, post: mockPost, patch: mockPatch, delete: mockDelete };
+  // sfApi は SalesforceApiClientPlugins.sobject/soql を .use() で適用するため、
+  // mockClient.use はプラグイン関数に mockClient 自身を渡し、返ったメソッドをマージしたクライアントを返す。
+  // 本物の ApiClient.use と同じく「plugin が HTTP メソッド名と衝突した場合 plugin が後勝ち」になる。
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mockClient: any = { get: mockGet, post: mockPost, patch: mockPatch, delete: mockDelete };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mockClient.use = (plugin: (c: any) => Record<string, unknown>) => {
+    const methods = plugin(mockClient);
+    return { ...mockClient, ...methods };
+  };
   const mockGetProfile = vi.fn();
   return { mockGet, mockPost, mockPatch, mockDelete, mockClient, mockGetProfile };
 });

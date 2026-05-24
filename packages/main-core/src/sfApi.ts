@@ -3,7 +3,10 @@
  * @description Salesforce API ラッパー（describeキャッシュ・書き込みセッション管理・「現在のプロファイル」一元管理）
  */
 
-import { SalesforceApiClient as SfClient } from '@app/libs';
+import {
+  SalesforceApiClient as SfClient,
+  SalesforceApiClientPlugins as SfPlugins,
+} from '@app/libs';
 import { getAccessToken, getInstanceUrl } from './sfOAuth.js';
 import { getProfile } from './settings.js';
 import { auditLog, log, appLogger } from './logger.js';
@@ -307,14 +310,15 @@ export const query = async (
   soql: string,
   maxRows: number,
 ): Promise<QueryResult> => {
-  const client = getClient(profileId);
+  // soql plugin で /query エンドポイントを集約。後続ページは nextRecordsUrl を相対化して raw GET で辿る。
+  // レスポンス検証は plugin の cast を信頼せず sfApi 側で toQueryPage により実施（CODING_RULES §1）
+  const client = getClient(profileId).use(SfPlugins.soql<Record<string, unknown>>());
   const records: Record<string, unknown>[] = [];
 
-  let page = toQueryPage(await client.get('/query', { q: soql }));
+  let page = toQueryPage(await client.query(soql));
   records.push(...page.records);
 
   while (!page.done && page.nextRecordsUrl && (maxRows === 0 || records.length < maxRows)) {
-    // nextRecordsUrl の /services/data/vXX.X プレフィックスを除去して baseUrl の二重化を防ぐ
     page = toQueryPage(await client.get(toRelativeEndpoint(page.nextRecordsUrl)));
     records.push(...page.records);
   }
@@ -351,6 +355,21 @@ const assertWriteAllowed = (profileId: string): void => {
   }
 };
 
+// 監査ログ + プロファイル存在チェックを 1 箇所に集約
+const writeAudit = (
+  profileId: string,
+  op: 'CREATE' | 'UPDATE' | 'DELETE',
+  resource: string,
+): void => {
+  const profile = getProfile(profileId);
+  if (!profile) throw new Error(`プロファイルが見つかりません: ${profileId}`);
+  auditLog(profile.name, op, resource, 1);
+};
+
+// sobject CRUD plugin を適用したクライアントを返す（write 3 関数で共用）
+const getSObjectClient = (profileId: string, objectName: string) =>
+  getClient(profileId).use(SfPlugins.sobject<Record<string, unknown>>(objectName));
+
 /**
  * 新規レコードを作成する。書き込みセッションが有効な readwrite プロファイルでのみ実行可能。
  *
@@ -366,17 +385,15 @@ export const createRecord = async (
   fields: Record<string, unknown>,
 ): Promise<string> => {
   assertWriteAllowed(profileId);
-  const client = getClient(profileId);
-  const raw: unknown = await client.post(`/sobjects/${objectName}/`, fields);
-
-  if (!isPlainObject(raw) || typeof raw['id'] !== 'string') {
+  const client = getSObjectClient(profileId, objectName);
+  // plugin の型は { id, success } を信頼するが、sfApi 境界で runtime guard を残す（CODING_RULES §1）
+  const created = await client.create(fields);
+  if (created == null || typeof created.id !== 'string') {
     throw new Error('作成レスポンスに id が含まれていません');
   }
 
-  const profileForAudit = getProfile(profileId);
-  if (!profileForAudit) throw new Error(`プロファイルが見つかりません: ${profileId}`);
-  auditLog(profileForAudit.name, 'CREATE', objectName, 1);
-  return raw['id'];
+  writeAudit(profileId, 'CREATE', objectName);
+  return created.id;
 };
 
 /**
@@ -395,12 +412,9 @@ export const updateRecord = async (
   fields: Record<string, unknown>,
 ): Promise<void> => {
   assertWriteAllowed(profileId);
-  const client = getClient(profileId);
-  await client.patch(`/sobjects/${objectName}/${id}`, fields);
-
-  const profileForAudit = getProfile(profileId);
-  if (!profileForAudit) throw new Error(`プロファイルが見つかりません: ${profileId}`);
-  auditLog(profileForAudit.name, 'UPDATE', `${objectName}/${id}`, 1);
+  // SF PATCH は 204 No Content を返すため戻り値検証は不要
+  await getSObjectClient(profileId, objectName).update(id, fields);
+  writeAudit(profileId, 'UPDATE', `${objectName}/${id}`);
 };
 
 /**
@@ -417,12 +431,9 @@ export const deleteRecord = async (
   id: string,
 ): Promise<void> => {
   assertWriteAllowed(profileId);
-  const client = getClient(profileId);
-  await client.delete(`/sobjects/${objectName}/${id}`);
-
-  const profileForAudit = getProfile(profileId);
-  if (!profileForAudit) throw new Error(`プロファイルが見つかりません: ${profileId}`);
-  auditLog(profileForAudit.name, 'DELETE', `${objectName}/${id}`, 1);
+  // SF DELETE は 204 No Content を返すため戻り値検証は不要
+  await getSObjectClient(profileId, objectName).delete(id);
+  writeAudit(profileId, 'DELETE', `${objectName}/${id}`);
 };
 
 export { WRITE_REQUIRED };
