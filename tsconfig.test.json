@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noImplicitAny": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    // テストコードそのもの
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "vitest.config.ts",
+    // 共有パッケージ (main-core / ipc-contract / libs 型のみ)
+    "packages/**/src/**/*.ts",
+    // main / preload は明示的に含める (renderer は test から import 経由で解決させる)
+    "apps/*/src/main/**/*.ts",
+    "apps/*/src/preload/**/*.ts",
+    // ambient declaration: Explorer の renderer global.d.ts のみ含める。
+    // Compass の global.d.ts (Window.sfx: LiteApi) を同時に含めると ambient 宣言の
+    // 後勝ち解決で test スコープの window.sfx が LiteApi になり、Explorer 系の renderer
+    // コンポーネント (write API を使う) で型エラーが大量発生する。renderer テストは
+    // すべて Explorer 由来なので Explorer 側だけを採用する。
+    "apps/explorer/src/renderer/global.d.ts"
+  ]
+}

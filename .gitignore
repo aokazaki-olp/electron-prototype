@@ -3,3 +3,7 @@ out/
 dist/
 *.log
 .DS_Store
+.env.test
+test-results/
+tests/e2e/report/
+*.tsbuildinfo

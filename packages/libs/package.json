@@ -1,0 +1,17 @@
+{
+  "name": "@app/libs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "外部リポ aokazaki-olp/libraries からコピーした共通ライブラリ層（ローカル編集禁止、SOURCE.md でハッシュ追跡）",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "csv-parse": "^5",
+    "csv-stringify": "^6",
+    "got": "^14"
+  }
+}

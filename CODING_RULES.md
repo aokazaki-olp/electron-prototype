@@ -339,13 +339,21 @@ new BrowserWindow({
   webPreferences: {
     nodeIntegration: false,
     contextIsolation: true,
-    sandbox: true,             // 可能ならtrue
+    sandbox: true,             // 常時 true 固定（false の本線マージは認めない・後述）
     preload: path.join(__dirname, 'preload.js'),
   },
 });
 ```
 
 理由: renderer に Node.js API を直接見せると、UIで読み込んだ任意のリソース（将来 npm パッケージ・SVG埋め込み画像等を含む）からファイルシステム・ネットワークに到達できてしまう。
+
+#### `sandbox: false` の取り扱い
+
+`webPreferences.sandbox: false` を含む変更は **本線ブランチ** へのマージを認めない。本線ブランチとは `main`・`develop`・公式 `feature/*`（複数人で共有する feature 開発ブランチ）を指す。
+
+公式 feature から派生した個人作業ブランチ・その他の個人ブランチは本線に含まれない。診断目的で `sandbox: false` を個人ブランチに一時コミットすることは妨げないが、本線ブランチへの PR 化した時点でレビューでリジェクトされる前提で扱う。リバートまたは修正してから再 PR とする。
+
+プロトタイプであってもこの境界はゼロ譲歩。
 
 ### 7.3 APIトークン・秘匿情報の置き場所
 
@@ -417,16 +425,21 @@ try {
 
 ## 8. プロトタイプ運用の規律
 
-このアプリは配布しない・プロトタイプという前提なので、**やらないこと**を明示する。
+このアプリは現状プロトタイプフェーズにある。プロトタイプとしての配布（社内・限定的な試用を含む）は妨げないが、正式な配布対応はまだ整えていない — 将来課題として保留する。将来配布フェーズに移行する際の改修コストを下げるため、マルチビルドターゲットの構造的分離（§10）は先行整備する。
+
+現フェーズで **やらないこと**：
 
 - **コードサイニング不要**: `electron-builder` の `win.target: portable`、署名なし
-- **自動アップデート不要**: 配布しないため
+- **自動アップデート不要**: 正式配布フェーズに入るまで保留
+- **クラッシュレポート不要**: テレメトリ・Sentry 等はフェーズ移行で再検討
 - **多言語化不要**: 日本語ハードコードで OK
-- **包括的なテスト不要**: ライブラリ層 (`src/libs/`) はコピー元リポでテスト済み。アプリ固有ロジックのみ、必要に応じて
+- **包括的なテスト不要**: ライブラリ層 (`src/libs/`) はコピー元リポでテスト済み。アプリ固有ロジックのみ、必要に応じて（ただし §11.4 のセキュリティ境界テストは別カテゴリ）
 
 ただし以下は**プロトタイプでも守る**：
 
 - §7 のプロセス境界・セキュリティ設定（後から直すと全面改修になる）
+- §10 のマルチビルドターゲットの規律（先行整備の中核）
+- §11 のセキュリティ多層防御
 - 型システムの規則（§4）
 - 構文・スタイル規則（§5）
 
@@ -439,3 +452,87 @@ try {
 - コピー元のコミットハッシュは `src/libs/SOURCE.md` に記録する
 - 元リポ側で修正が入った場合は手動同期。**ローカルで `src/libs/` を直接編集しない**（同期時に消える）
 - 編集が必要になったら、まず元リポ側に PR を出してマージしてから同期する
+
+---
+
+## 10. マルチビルドターゲットの規律
+
+本リポは現在 Explorer 単一実用ビルドだが、将来 Compass を別ビルドとして派生させる構想がある。配布対応は §8 の通り将来課題だが、構造的分離は先行整備する。商品名 "Salesforce Explorer" / "Salesforce Compass" は仮称。
+
+### 10.1 ビルドターゲットの識別
+
+ビルドターゲットは `BUILD_TARGET=explorer|compass` 環境変数で識別する。これに依存する固定値は `src/main/buildInfo.ts` に集約し、コード内に散在させない。
+
+集約対象：
+
+- `appId`: Explorer と Compass で別 ID（OS に同居できるようにするため）
+- カスタム URL スキーム: `salesforce-explorer://` / `salesforce-compass://`
+- `electron-store` の `name`: 設定ストアの混線防止
+- `productName`
+- `OAUTH_CALLBACK_URL`: Salesforce Connected App の Callback URL に登録する値と一致させる
+
+リテラルのスキーム文字列・ストア名・appId をコード内に直書きしない。すべて `BUILD` 経由で参照する。
+
+### 10.2 ビルドターゲット別の electron-builder 設定
+
+`electron-builder.explorer.yml` と `electron-builder.compass.yml` を分けて管理する。`appId`・`protocols.schemes`・`directories.output`・`productName` をそれぞれのビルドで分離。Compass は `extraMetadata.name` で `package.json` の `name` を上書きする。
+
+`npm run dist:explorer` と `npm run dist:compass` でそれぞれ独立したビルド成果物を生成する（出力先は `dist/explorer/` と `dist/compass/`）。
+
+### 10.3 preload の公開 API はビルド別に分岐（将来）
+
+Compass ビルドでは renderer に書き込み系 API などを公開しない方針。`contextBridge.exposeInMainWorld` の引数オブジェクトをビルド別に構築する（runtime check ではなく compile-time の差分で防御）。
+
+現状は両ビルドとも同一 preload を使うが、Compass UI 実装時に分岐する。
+
+### 10.4 main プロセス IPC ハンドラはビルド別に登録（将来）
+
+防御を多層化するため、Compass ビルドでは書き込み系の `ipcMain.handle(IPC.CREATE_RECORD, ...)` 等を登録しない。preload で蓋がされていても、main 側でも蓋をする。preload 分岐とセットで実装する。
+
+### 10.5 renderer はビルド別に分離（将来）
+
+将来は `src/renderer/`（Explorer）と `src/renderer-compass/`（Compass）に分け、ESLint の `no-restricted-paths` 等で相互 import を禁止する。共通 UI コンポーネントが必要になったら共有層を作る判断をするが、それまでは複製を許容する。
+
+現状は両ビルドとも `src/renderer/` を使う（Compass UI 未実装）。
+
+### 10.6 Salesforce 側 Connected App はビルド別に作成
+
+Client ID 焼き込み運用の前提として、Salesforce 側にも Explorer 用・Compass 用の Connected App を分けて作成する。OAuth スコープ・コールバック URL を最小化する：
+
+- Explorer Connected App: Callback URL = `salesforce-explorer://callback`、スコープは Explorer 機能に必要な最小限
+- Compass Connected App: Callback URL = `salesforce-compass://callback`、スコープは Compass 機能（読み取り中心想定）に絞った最小限
+
+### 10.7 ライブラリ層 (§9) との関係
+
+§9 の通り `src/libs/` はローカル編集禁止。新規 SF API クライアントが必要な場合（例: Bulk API 2.0）は、当面 `src/main/` 配下（例: `src/main/sfBulkApi.ts`）に直書きする。libs への昇格は別判断。
+
+---
+
+## 11. セキュリティ多層防御
+
+§7 のプロセス境界に加え、以下を多層防御として規定する。実装済み・未実装が混在するが、ルールとしては今後すべて適用する方針。
+
+### 11.1 sandbox は常時 true
+
+`BrowserWindow` の `webPreferences.sandbox` は `true` 固定。違反する変更は §7.2 の通り本線ブランチへのマージを認めない。
+
+### 11.2 Content Security Policy（将来）
+
+renderer の `index.html` に CSP meta を必ず設定する。最低限 `default-src 'self'` を含める。外部リソース（CDN 等）への到達は CSP で物理的に禁止する。
+
+### 11.3 起動時の API 公開面 assertion（将来）
+
+preload 内で、ビルドターゲットに応じた期待 API キーセットと、実際に `exposeInMainWorld` する内容を比較する自己検証を入れる。差分があれば起動時に throw して renderer を立ち上げない。誤ビルド・ビルド設定ミスを起動時に検出する目的。
+
+### 11.4 セキュリティ境界テスト（CI 必須）
+
+Compass ビルドにおいて書き込み API が renderer から到達不能であること等、セキュリティ境界の不変条件を Playwright で assert する。これは §8 の「包括的テスト不要」とは別カテゴリで、**境界の regress 検出に限定したテスト**として CI 必須とする。
+
+例:
+
+- `window.sfx.createRecord` が Compass ビルドで `undefined` であること
+- 書き込み tool が MCP の stdio モード（GUI 不在時）で応答しないこと
+
+### 11.5 エラーシリアライズ
+
+main → renderer のエラーは内部詳細を含めず message のみを渡す（既存 `src/main/index.ts` の `serializeError` を踏襲）。スタックトレースは electron-log にのみ出力し、IPC で renderer に渡さない。

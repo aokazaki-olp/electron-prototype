@@ -1,0 +1,19 @@
+{
+  "name": "@app/compass",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Salesforce Compass — ライト版 (非エンジニア向け、複雑度を UI で吸収する派生ビルド)",
+  "main": "out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env BUILD_TARGET=compass electron-vite dev",
+    "build": "cross-env BUILD_TARGET=compass npm run gen-builder-yml && electron-vite build",
+    "preview": "electron-vite preview",
+    "dist": "npm run build && electron-builder --win --config electron-builder.yml",
+    "gen-builder-yml": "cross-env BUILD_TARGET=compass node ../../scripts/gen-builder-yml.mjs"
+  },
+  "dependencies": {
+    "@app/main-core": "*",
+    "@app/ipc-contract": "*"
+  }
+}

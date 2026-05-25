@@ -1,0 +1,17 @@
+# AUTO-GENERATED from packages/main-core/src/buildInfo.ts via scripts/gen-builder-yml.mjs
+# Do not edit manually. Run `npm run gen-builder-yml -w @app/<target>` to regenerate.
+appId: com.example.salesforce-compass
+productName: Salesforce Compass
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+protocols:
+  - name: Salesforce Compass
+    schemes:
+      - salesforce-compass
+win:
+  target: portable
+extraMetadata:
+  name: salesforce-compass
