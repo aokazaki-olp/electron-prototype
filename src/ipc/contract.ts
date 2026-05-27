@@ -19,6 +19,7 @@ export interface SfConnectionProfile {
 export interface AppSettings {
   defaultMaxRows: number;
   profiles: SfConnectionProfile[];
+  yahooAppId?: string;
 }
 
 // ============================================================================
@@ -78,6 +79,42 @@ export interface QueryResult {
 }
 
 // ============================================================================
+// POI検索
+// ============================================================================
+
+export interface PoiAddressFields {
+  prefecture: string;
+  city: string;
+  oaza: string;
+  aza: string;
+  detail1: string;
+  detail2: string;
+  building: string;
+}
+
+export type PoiSource = 'yahoo-local' | 'yahoo-geocoder';
+
+export type PoiQueryType = 'name' | 'address' | 'ambiguous';
+
+export interface PoiCandidate {
+  id: string;
+  officialName: string;
+  postalCode: string;
+  address: PoiAddressFields;
+  phone: string;
+  lat: number | null;
+  lon: number | null;
+  source: PoiSource;
+  filledCount: number;
+  rawJson: string;
+}
+
+export interface PoiSearchResult {
+  candidates: PoiCandidate[];
+  queryType: PoiQueryType;
+}
+
+// ============================================================================
 // エクスポート
 // ============================================================================
 
@@ -134,6 +171,9 @@ export const IPC = {
   // ログ（push型 main → renderer）
   LOG_ENTRY: 'log:entry',
   GET_RECENT_LOGS: 'log:recent',
+
+  // POI検索
+  POI_SEARCH: 'poi:search',
 } as const;
 
 // ============================================================================
@@ -172,6 +212,9 @@ export interface SalesforceExplorerApi {
   // ログ
   getRecentLogs(limit?: number): Promise<LogEntry[]>;
   onLogEntry(callback: (entry: LogEntry) => void): () => void;
+
+  // POI検索
+  poiSearch(query: string): Promise<PoiSearchResult>;
 }
 
 declare global {

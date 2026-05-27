@@ -27,6 +27,7 @@ import {
   clearWriteSession,
 } from './sfApi.js';
 import { exportCsv, exportQueryExcel, exportObjectDefinition } from './export.js';
+import { poiSearch } from './poiSearch.js';
 import { IPC } from '../ipc/contract.js';
 import type { CsvExportOptions, LogEntry } from '../ipc/contract.js';
 
@@ -278,4 +279,7 @@ const registerIpcHandlers = (): void => {
 
   // ログ
   handle(IPC.GET_RECENT_LOGS, async () => getRecentLogs());
+
+  // POI検索
+  handle(IPC.POI_SEARCH, async (query) => poiSearch(String(query)));
 };

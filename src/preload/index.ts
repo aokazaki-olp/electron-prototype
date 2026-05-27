@@ -49,6 +49,9 @@ const api: SalesforceExplorerApi = {
     ipcRenderer.on(IPC.LOG_ENTRY, handler);
     return () => ipcRenderer.removeListener(IPC.LOG_ENTRY, handler);
   },
+
+  // POI検索
+  poiSearch: (query: string) => ipcRenderer.invoke(IPC.POI_SEARCH, query),
 };
 
 contextBridge.exposeInMainWorld('sfx', api);
