@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Wifi, WifiOff } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, Wifi, MapPin } from 'lucide-react';
 import { useAppStore } from '../store.js';
 import type { SfConnectionProfile, AppSettings } from '../../ipc/contract.js';
 
@@ -15,9 +15,10 @@ const newId = () => `profile-${Date.now()}`;
 
 interface Props {
   onConnect: (profileId: string) => void;
+  onPoiSearch: () => void;
 }
 
-export const SettingsPage = ({ onConnect }: Props): JSX.Element => {
+export const SettingsPage = ({ onConnect, onPoiSearch }: Props): JSX.Element => {
   const { profiles, setProfiles, settings, setSettings, setActiveProfileId, setAuthState } = useAppStore();
   const [editing, setEditing] = useState<SfConnectionProfile | null>(null);
   const [isNew, setIsNew] = useState(false);
@@ -243,6 +244,37 @@ export const SettingsPage = ({ onConnect }: Props): JSX.Element => {
                   ))}
                 </select>
               </label>
+            </div>
+          </section>
+        )}
+
+        {/* POI検索 */}
+        {settings && (
+          <section className="bg-white rounded-lg border border-slate-200">
+            <div className="px-4 py-3 border-b border-slate-200">
+              <h2 className="font-semibold text-slate-700">POI検索（Yahoo! API）</h2>
+            </div>
+            <div className="px-4 py-4 space-y-4">
+              <label className="block text-sm text-slate-700">
+                <span className="block mb-1">Yahoo! アプリケーションID</span>
+                <input
+                  type="text"
+                  value={settings.yahooAppId ?? ''}
+                  onChange={e => saveAppSettings({ yahooAppId: e.target.value })}
+                  placeholder="Yahoo! Developer Network で取得した AppID"
+                  className="w-full px-2 py-1.5 border border-slate-300 rounded font-mono text-xs outline-none focus:border-blue-500"
+                />
+              </label>
+              <button
+                onClick={onPoiSearch}
+                disabled={!settings.yahooAppId?.trim()}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                <MapPin size={13} /> POI検索テストを開く
+              </button>
+              {!settings.yahooAppId?.trim() && (
+                <p className="text-xs text-slate-400">AppIDを入力すると検索テストが使えます</p>
+              )}
             </div>
           </section>
         )}

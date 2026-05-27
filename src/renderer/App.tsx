@@ -1,11 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { MainPage } from './pages/MainPage.js';
+import { PoiSearchPage } from './pages/PoiSearchPage.js';
 import { useAppStore } from './store.js';
 import type { LogEntry } from '../ipc/contract.js';
 
 const App = (): JSX.Element => {
   const { authState, activeProfileId, setAuthState, setActiveProfileId, appendLog } = useAppStore();
+  const [poiOpen, setPoiOpen] = useState(false);
 
   useEffect(() => {
     // ログストリーミング購読
@@ -36,6 +38,10 @@ const App = (): JSX.Element => {
     });
   }, []);
 
+  if (poiOpen) {
+    return <PoiSearchPage onBack={() => setPoiOpen(false)} />;
+  }
+
   if (authState === 'checking') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -52,6 +58,7 @@ const App = (): JSX.Element => {
           setAuthState('disconnected');
         }}
         onSettings={() => setAuthState('disconnected')}
+        onPoiSearch={() => setPoiOpen(true)}
       />
     );
   }
@@ -62,6 +69,7 @@ const App = (): JSX.Element => {
         setActiveProfileId(profileId);
         setAuthState('connected');
       }}
+      onPoiSearch={() => setPoiOpen(true)}
     />
   );
 };

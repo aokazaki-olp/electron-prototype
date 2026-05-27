@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut, MapPin } from 'lucide-react';
 import { SObjectBrowser } from '../components/SObjectBrowser.js';
 import { SoqlEditor } from '../components/SoqlEditor.js';
 import { ResultTable } from '../components/ResultTable.js';
@@ -12,9 +12,10 @@ type BottomTab = 'result' | 'log';
 interface Props {
   onDisconnect: () => void;
   onSettings: () => void;
+  onPoiSearch: () => void;
 }
 
-export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
+export const MainPage = ({ onDisconnect, onSettings, onPoiSearch }: Props): JSX.Element => {
   const { profiles, activeProfileId, settings } = useAppStore();
   const [result, setResult] = useState<QueryResult | null>(null);
   const [bottomTab, setBottomTab] = useState<BottomTab>('result');
@@ -46,6 +47,12 @@ export const MainPage = ({ onDisconnect, onSettings }: Props): JSX.Element => {
           </>
         )}
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={onPoiSearch}
+            className="flex items-center gap-1 text-xs text-slate-300 hover:text-white px-2 py-1 rounded hover:bg-slate-700"
+          >
+            <MapPin size={13} /> POI検索
+          </button>
           <button
             onClick={onSettings}
             className="flex items-center gap-1 text-xs text-slate-300 hover:text-white px-2 py-1 rounded hover:bg-slate-700"
