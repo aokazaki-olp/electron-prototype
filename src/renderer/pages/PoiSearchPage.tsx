@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { Search, Settings, X } from 'lucide-react';
-import type { PoiCandidate, PoiQueryType, PoiSearchResult } from '../../ipc/contract.js';
+import type { PoiCandidate, PoiQueryType, PoiSearchOptions, PoiSearchResult } from '../../ipc/contract.js';
 
 const TOTAL_FIELDS = 10;
 
@@ -35,16 +35,24 @@ export const PoiSearchPage = ({ onSettings }: Props): JSX.Element => {
   const [selected, setSelected] = useState<PoiCandidate | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchOptions, setSearchOptions] = useState<PoiSearchOptions>({
+    useLocalSearch: true,
+    useGeocoder: true,
+  });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const search = useCallback(async (q: string): Promise<void> => {
+  const search = useCallback(async (q: string, opts: PoiSearchOptions): Promise<void> => {
     if (!q.trim()) {
+      return;
+    }
+    if (!opts.useLocalSearch && !opts.useGeocoder) {
+      setError('少なくとも1つのAPIを選択してください');
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const r = await window.sfx.poiSearch(q.trim());
+      const r = await window.sfx.poiSearch(q.trim(), opts);
       setResult(r);
       setSelected(null);
     } catch (e) {
@@ -59,7 +67,7 @@ export const PoiSearchPage = ({ onSettings }: Props): JSX.Element => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
-    debounceRef.current = setTimeout(() => search(value), 300);
+    debounceRef.current = setTimeout(() => search(value, searchOptions), 300);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
@@ -69,14 +77,18 @@ export const PoiSearchPage = ({ onSettings }: Props): JSX.Element => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
-    search(query);
+    search(query, searchOptions);
   };
 
   const handleSearch = (): void => {
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
     }
-    search(query);
+    search(query, searchOptions);
+  };
+
+  const toggleOption = (key: keyof PoiSearchOptions): void => {
+    setSearchOptions(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const filledColor = (count: number): string => {
@@ -113,9 +125,27 @@ export const PoiSearchPage = ({ onSettings }: Props): JSX.Element => {
             className="w-full pl-9 pr-3 py-1.5 text-sm border border-slate-300 rounded-md outline-none focus:border-blue-500"
           />
         </div>
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={searchOptions.useLocalSearch}
+            onChange={() => toggleOption('useLocalSearch')}
+            className="accent-orange-500"
+          />
+          ローカルサーチ
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={searchOptions.useGeocoder}
+            onChange={() => toggleOption('useGeocoder')}
+            className="accent-purple-500"
+          />
+          ジオコーダ
+        </label>
         <button
           onClick={handleSearch}
-          disabled={loading || !query.trim()}
+          disabled={loading || !query.trim() || (!searchOptions.useLocalSearch && !searchOptions.useGeocoder)}
           className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? '検索中...' : '検索'}

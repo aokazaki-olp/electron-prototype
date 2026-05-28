@@ -5,12 +5,12 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC } from '../ipc/contract.js';
-import type { AppApi, AppSettings } from '../ipc/contract.js';
+import type { AppApi, AppSettings, PoiSearchOptions } from '../ipc/contract.js';
 
 const api: AppApi = {
   loadSettings: () => ipcRenderer.invoke(IPC.LOAD_SETTINGS),
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke(IPC.SAVE_SETTINGS, settings),
-  poiSearch: (query: string) => ipcRenderer.invoke(IPC.POI_SEARCH, query),
+  poiSearch: (query: string, options: PoiSearchOptions) => ipcRenderer.invoke(IPC.POI_SEARCH, query, options),
 };
 
 contextBridge.exposeInMainWorld('sfx', api);

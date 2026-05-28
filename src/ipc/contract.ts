@@ -42,6 +42,11 @@ export interface PoiCandidate {
   rawJson: string;
 }
 
+export interface PoiSearchOptions {
+  useLocalSearch: boolean;
+  useGeocoder: boolean;
+}
+
 export interface PoiSearchResult {
   candidates: PoiCandidate[];
   queryType: PoiQueryType;
@@ -64,7 +69,7 @@ export const IPC = {
 export interface AppApi {
   loadSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<void>;
-  poiSearch(query: string): Promise<PoiSearchResult>;
+  poiSearch(query: string, options: PoiSearchOptions): Promise<PoiSearchResult>;
 }
 
 declare global {

@@ -10,6 +10,7 @@ import { initLogger, log } from './logger.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { poiSearch } from './poiSearch.js';
 import { IPC } from '../ipc/contract.js';
+import type { PoiSearchOptions } from '../ipc/contract.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -84,7 +85,9 @@ const registerIpcHandlers = (): void => {
   handle(IPC.SAVE_SETTINGS, async (settings) =>
     saveSettings(settings as Parameters<typeof saveSettings>[0]),
   );
-  handle(IPC.POI_SEARCH, async (query) => poiSearch(String(query)));
+  handle(IPC.POI_SEARCH, async (query, options) =>
+    poiSearch(String(query), options as PoiSearchOptions),
+  );
 };
 
 export { log };
