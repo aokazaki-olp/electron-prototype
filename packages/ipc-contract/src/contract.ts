@@ -214,6 +214,7 @@ export const IPC = {
   EXPORT_OBJECT_DEFINITION: 'export:object-definition',
   EXPORT_OBJECT_DEFINITION_MARKDOWN: 'export:object-definition-markdown',
   EXPORT_OBJECT_DEFINITION_JSON: 'export:object-definition-json',
+  EXPORT_OBJECTS_MD_FOLDER: 'export:objects-md-folder',
   EXPORT_LOG_FILE: 'export:log-file',
 
   // ログ（push型 main → renderer）
@@ -276,6 +277,8 @@ export interface SalesforceExplorerApi {
   exportObjectDefinition(objectName: string): Promise<void>;
   exportObjectDefinitionMarkdown(objectName: string): Promise<void>;
   exportObjectDefinitionJson(objectName: string): Promise<void>;
+  /** フォルダを選択し、objectNames の定義書を個別 MD ファイルで出力。README.md に TOC を生成する。 */
+  exportObjectsMdFolder(objectNames: string[]): Promise<void>;
   /** 現在の LogViewer 内容を .log ファイルに保存する。ユーザーが dialog をキャンセルした場合は何もせず返る。 */
   exportLogFile(logs: LogEntry[]): Promise<void>;
 
@@ -304,6 +307,7 @@ export type LiteApi = Pick<SalesforceExplorerApi,
   | 'exportObjectDefinition'
   | 'exportObjectDefinitionMarkdown'
   | 'exportObjectDefinitionJson'
+  | 'exportObjectsMdFolder'
   | 'getRecentLogs'
   | 'onLogEntry'
   | 'rendererLog'
@@ -324,13 +328,13 @@ export const EXPECTED_API_KEYS = {
     'saveSoqlFile', 'openSoqlFile',
     'loadTabs', 'saveTabs',
     'loadColumnSizes', 'saveColumnSizes',
-    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportLogFile',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportObjectsMdFolder', 'exportLogFile',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
   compass: [
     'loadSettings', 'loadProfiles', 'getAuthState',
     'listSObjects', 'describeObject', 'query',
-    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportObjectsMdFolder',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
 } as const satisfies {

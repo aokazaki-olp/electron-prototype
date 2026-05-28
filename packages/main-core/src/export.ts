@@ -9,6 +9,7 @@
 import { dialog } from 'electron';
 import { createWriteStream } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { stringify, stringify as stringifySync } from 'csv-stringify/sync';
 import { stringify as stringifyStream } from 'csv-stringify';
 import { pipeline } from 'node:stream/promises';
@@ -16,7 +17,7 @@ import { Readable } from 'node:stream';
 import ExcelJS from 'exceljs';
 import { log } from './logger.js';
 import { describeObject } from './sfApi.js';
-import type { CsvExportOptions } from '@app/ipc-contract';
+import type { CsvExportOptions, SObjectDescribe } from '@app/ipc-contract';
 
 // stringify (sync) は単体テストで使う公開 API のため import を残す
 void stringify;
@@ -288,29 +289,8 @@ const escMd = (v: unknown): string => {
   return String(v).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
 };
 
-/**
- * 指定 sObject の定義書を Markdown ファイルとして書き出す。
- * 保存ダイアログでユーザーがキャンセルした場合は何もしない。
- *
- * @param profileId - 対象プロファイル ID
- * @param objectName - sObject API 名（例: `Account`）
- */
-export const exportObjectDefinitionMarkdown = async (
-  profileId: string,
-  objectName: string,
-): Promise<void> => {
-  const result = await dialog.showSaveDialog({
-    title: 'Markdown定義書として保存',
-    defaultPath: `${objectName}_definition.md`,
-    filters: [{ name: 'Markdown', extensions: ['md'] }],
-  });
-
-  if (result.canceled || !result.filePath) {
-    return;
-  }
-
-  const describe = await describeObject(profileId, objectName);
-
+/** 1 オブジェクトの定義書 Markdown 行配列を生成する（単体・一括共用） */
+const buildObjectMdLines = (describe: SObjectDescribe): string[] => {
   const lines: string[] = [];
   lines.push(`# ${describe.label}（${describe.name}）`);
   lines.push('');
@@ -337,8 +317,100 @@ export const exportObjectDefinitionMarkdown = async (
     );
   }
 
-  await writeFile(result.filePath, lines.join('\n'), 'utf-8');
+  return lines;
+};
+
+/**
+ * 指定 sObject の定義書を Markdown ファイルとして書き出す。
+ * 保存ダイアログでユーザーがキャンセルした場合は何もしない。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param objectName - sObject API 名（例: `Account`）
+ */
+export const exportObjectDefinitionMarkdown = async (
+  profileId: string,
+  objectName: string,
+): Promise<void> => {
+  const result = await dialog.showSaveDialog({
+    title: 'Markdown定義書として保存',
+    defaultPath: `${objectName}_definition.md`,
+    filters: [{ name: 'Markdown', extensions: ['md'] }],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return;
+  }
+
+  const describe = await describeObject(profileId, objectName);
+  await writeFile(result.filePath, buildObjectMdLines(describe).join('\n'), 'utf-8');
   log.info(`[Export] Markdown定義書保存完了: ${result.filePath} (${describe.fields.length}フィールド)`);
+};
+
+// ============================================================================
+// Markdown — 複数オブジェクト一括定義書（フォルダ出力 + README.md TOC）
+// ============================================================================
+
+/**
+ * 指定オブジェクト群の定義書をフォルダに一括出力する。
+ * 各オブジェクトを `${objectName}.md` として書き出し、
+ * `README.md` に全オブジェクトへのリンク付き TOC を生成する。
+ * フォルダ選択でユーザーがキャンセルした場合は何もしない。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param objectNames - 出力対象の sObject API 名リスト
+ */
+export const exportObjectDefinitionsMdFolder = async (
+  profileId: string,
+  objectNames: string[],
+): Promise<void> => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Markdown定義書の出力先フォルダを選択',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+
+  if (canceled || filePaths.length === 0 || !filePaths[0]) {
+    return;
+  }
+
+  const outDir = filePaths[0];
+  const total = objectNames.length;
+  log.info(`[Export] Markdown一括定義書出力開始: ${total}件 → ${outDir}`);
+
+  const tocRows: string[] = [];
+  let succeeded = 0;
+
+  for (let i = 0; i < objectNames.length; i++) {
+    const objectName = objectNames[i];
+    if (!objectName) {
+      continue;
+    }
+    try {
+      const describe = await describeObject(profileId, objectName);
+      await writeFile(join(outDir, `${objectName}.md`), buildObjectMdLines(describe).join('\n'), 'utf-8');
+      tocRows.push(
+        `| [${escMd(describe.name)}](./${describe.name}.md) | ${escMd(describe.label)} | ${describe.fields.length} | ${describe.custom ? '●' : ''} |`,
+      );
+      succeeded++;
+      log.info(`[Export] MD定義書 ${i + 1}/${total}: ${objectName}`);
+    } catch (e) {
+      log.warn(`[Export] MD定義書スキップ (${objectName}): ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  const now = new Date();
+  const readmeLines = [
+    '# Salesforce オブジェクト定義書',
+    '',
+    `出力日時: ${now.toLocaleString('ja-JP')}  `,
+    `オブジェクト数: ${succeeded}件`,
+    '',
+    '| API名 | ラベル | フィールド数 | カスタム |',
+    '|---|---|---|---|',
+    ...tocRows,
+  ];
+  await writeFile(join(outDir, 'README.md'), readmeLines.join('\n'), 'utf-8');
+
+  log.info(`[Export] Markdown一括定義書出力完了: ${succeeded}/${total}件 → ${outDir}`);
 };
 
 // ============================================================================

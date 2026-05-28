@@ -45,6 +45,7 @@ import {
   exportObjectDefinition,
   exportObjectDefinitionMarkdown,
   exportObjectDefinitionJson,
+  exportObjectDefinitionsMdFolder,
   registerProcessErrorHandlers,
   registerPermissionDenyAll,
 } from '@app/main-core';
@@ -521,6 +522,11 @@ const registerIpcHandlers = (): void => {
   handle(IPC.EXPORT_OBJECT_DEFINITION_JSON, async (objectName) => {
     assertString(objectName);
     return exportObjectDefinitionJson(requireCurrentProfile(), objectName);
+  });
+
+  handle(IPC.EXPORT_OBJECTS_MD_FOLDER, async (objectNames) => {
+    assertStringArray(objectNames);
+    return exportObjectDefinitionsMdFolder(requireCurrentProfile(), objectNames);
   });
 
   handle(IPC.EXPORT_LOG_FILE, async (logs) => {

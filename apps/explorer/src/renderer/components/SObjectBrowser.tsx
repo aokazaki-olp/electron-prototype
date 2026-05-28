@@ -130,6 +130,19 @@ const SObjectBrowserInner = (): JSX.Element => {
     }
   };
 
+  const handleExportMdFolder = async () => {
+    if (filtered.length === 0) {
+      return;
+    }
+    try {
+      await window.sfx.exportObjectsMdFolder(filtered.map(o => o.name));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      window.sfx.rendererLog('error', `一括MD定義書出力失敗: ${msg}`);
+      showToast('error', `一括MD定義書出力に失敗しました: ${msg}`);
+    }
+  };
+
   const handleExportDefinition = async (format: 'excel' | 'markdown' | 'json') => {
     if (!selectedObject) {
       return;
@@ -165,6 +178,16 @@ const SObjectBrowserInner = (): JSX.Element => {
               className="w-full pl-7 pr-2 py-1 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded outline-none focus:border-blue-500"
             />
           </div>
+          <button
+            type="button"
+            onClick={handleExportMdFolder}
+            disabled={filtered.length === 0}
+            className="p-1 text-xs text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 whitespace-nowrap"
+            title={`表示中の ${filtered.length} 件を Markdown で一括出力`}
+            aria-label="フィルタ結果をMarkdown定義書として一括出力"
+          >
+            MD↓
+          </button>
           <button
             type="button"
             onClick={loadSObjects}
