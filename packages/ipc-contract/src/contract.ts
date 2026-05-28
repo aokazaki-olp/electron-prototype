@@ -212,6 +212,8 @@ export const IPC = {
   EXPORT_CSV: 'export:csv',
   EXPORT_QUERY_EXCEL: 'export:query-excel',
   EXPORT_OBJECT_DEFINITION: 'export:object-definition',
+  EXPORT_OBJECT_DEFINITION_MARKDOWN: 'export:object-definition-markdown',
+  EXPORT_OBJECT_DEFINITION_JSON: 'export:object-definition-json',
   EXPORT_LOG_FILE: 'export:log-file',
 
   // ログ（push型 main → renderer）
@@ -272,6 +274,8 @@ export interface SalesforceExplorerApi {
   exportCsv(records: Record<string, unknown>[], columns: string[], options: CsvExportOptions): Promise<void>;
   exportQueryExcel(records: Record<string, unknown>[], columns: string[]): Promise<void>;
   exportObjectDefinition(objectName: string): Promise<void>;
+  exportObjectDefinitionMarkdown(objectName: string): Promise<void>;
+  exportObjectDefinitionJson(objectName: string): Promise<void>;
   /** 現在の LogViewer 内容を .log ファイルに保存する。ユーザーが dialog をキャンセルした場合は何もせず返る。 */
   exportLogFile(logs: LogEntry[]): Promise<void>;
 
@@ -298,6 +302,8 @@ export type LiteApi = Pick<SalesforceExplorerApi,
   | 'exportCsv'
   | 'exportQueryExcel'
   | 'exportObjectDefinition'
+  | 'exportObjectDefinitionMarkdown'
+  | 'exportObjectDefinitionJson'
   | 'getRecentLogs'
   | 'onLogEntry'
   | 'rendererLog'
@@ -318,13 +324,13 @@ export const EXPECTED_API_KEYS = {
     'saveSoqlFile', 'openSoqlFile',
     'loadTabs', 'saveTabs',
     'loadColumnSizes', 'saveColumnSizes',
-    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportLogFile',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportLogFile',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
   compass: [
     'loadSettings', 'loadProfiles', 'getAuthState',
     'listSObjects', 'describeObject', 'query',
-    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
 } as const satisfies {

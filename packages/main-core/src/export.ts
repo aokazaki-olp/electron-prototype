@@ -275,3 +275,98 @@ export const exportObjectDefinition = async (
   await writeFile(result.filePath, Buffer.from(buffer));
   log.info(`[Export] 定義書保存完了: ${result.filePath} (${describe.fields.length}フィールド)`);
 };
+
+// ============================================================================
+// Markdown — オブジェクト定義書
+// ============================================================================
+
+/** Markdown テーブルセル内の `|` と改行をエスケープ */
+const escMd = (v: unknown): string => {
+  if (v == null || v === '') {
+    return '';
+  }
+  return String(v).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+};
+
+/**
+ * 指定 sObject の定義書を Markdown ファイルとして書き出す。
+ * 保存ダイアログでユーザーがキャンセルした場合は何もしない。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param objectName - sObject API 名（例: `Account`）
+ */
+export const exportObjectDefinitionMarkdown = async (
+  profileId: string,
+  objectName: string,
+): Promise<void> => {
+  const result = await dialog.showSaveDialog({
+    title: 'Markdown定義書として保存',
+    defaultPath: `${objectName}_definition.md`,
+    filters: [{ name: 'Markdown', extensions: ['md'] }],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return;
+  }
+
+  const describe = await describeObject(profileId, objectName);
+
+  const lines: string[] = [];
+  lines.push(`# ${describe.label}（${describe.name}）`);
+  lines.push('');
+  lines.push('| 項目 | 値 |');
+  lines.push('|---|---|');
+  lines.push(`| API名 | \`${describe.name}\` |`);
+  lines.push(`| ラベル | ${escMd(describe.label)} |`);
+  lines.push(`| ラベル(複数) | ${escMd(describe.labelPlural)} |`);
+  lines.push(`| フィールド数 | ${describe.fields.length} |`);
+  lines.push('');
+  lines.push('## フィールド定義');
+  lines.push('');
+  lines.push('| 項目名(API) | 項目ラベル | データ型 | 長さ | 必須 | ユニーク | 外部ID | カスタム | 参照先 | 選択リスト値 |');
+  lines.push('|---|---|---|---|---|---|---|---|---|---|');
+
+  for (const field of describe.fields) {
+    const picklistStr = field.picklistValues
+      .filter(p => p.active)
+      .map(p => p.value)
+      .join(', ');
+
+    lines.push(
+      `| ${escMd(field.name)} | ${escMd(field.label)} | ${escMd(TYPE_JA[field.type] ?? field.type)} | ${field.length ?? ''} | ${field.nillable ? '' : '●'} | ${field.unique ? '●' : ''} | ${field.externalId ? '●' : ''} | ${field.custom ? '●' : ''} | ${escMd(field.referenceTo.join(', '))} | ${escMd(picklistStr)} |`,
+    );
+  }
+
+  await writeFile(result.filePath, lines.join('\n'), 'utf-8');
+  log.info(`[Export] Markdown定義書保存完了: ${result.filePath} (${describe.fields.length}フィールド)`);
+};
+
+// ============================================================================
+// JSON — オブジェクト定義書
+// ============================================================================
+
+/**
+ * 指定 sObject の定義書を JSON ファイルとして書き出す。
+ * 保存ダイアログでユーザーがキャンセルした場合は何もしない。
+ *
+ * @param profileId - 対象プロファイル ID
+ * @param objectName - sObject API 名（例: `Account`）
+ */
+export const exportObjectDefinitionJson = async (
+  profileId: string,
+  objectName: string,
+): Promise<void> => {
+  const result = await dialog.showSaveDialog({
+    title: 'JSON定義書として保存',
+    defaultPath: `${objectName}_definition.json`,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return;
+  }
+
+  const describe = await describeObject(profileId, objectName);
+  await writeFile(result.filePath, JSON.stringify(describe, null, 2), 'utf-8');
+  log.info(`[Export] JSON定義書保存完了: ${result.filePath} (${describe.fields.length}フィールド)`);
+};

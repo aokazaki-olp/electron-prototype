@@ -43,6 +43,8 @@ import {
   exportCsv,
   exportQueryExcel,
   exportObjectDefinition,
+  exportObjectDefinitionMarkdown,
+  exportObjectDefinitionJson,
   registerProcessErrorHandlers,
   registerPermissionDenyAll,
 } from '@app/main-core';
@@ -509,6 +511,16 @@ const registerIpcHandlers = (): void => {
   handle(IPC.EXPORT_OBJECT_DEFINITION, async (objectName) => {
     assertString(objectName);
     return exportObjectDefinition(requireCurrentProfile(), objectName);
+  });
+
+  handle(IPC.EXPORT_OBJECT_DEFINITION_MARKDOWN, async (objectName) => {
+    assertString(objectName);
+    return exportObjectDefinitionMarkdown(requireCurrentProfile(), objectName);
+  });
+
+  handle(IPC.EXPORT_OBJECT_DEFINITION_JSON, async (objectName) => {
+    assertString(objectName);
+    return exportObjectDefinitionJson(requireCurrentProfile(), objectName);
   });
 
   handle(IPC.EXPORT_LOG_FILE, async (logs) => {

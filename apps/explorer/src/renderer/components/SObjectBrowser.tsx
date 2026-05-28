@@ -130,12 +130,18 @@ const SObjectBrowserInner = (): JSX.Element => {
     }
   };
 
-  const handleExportDefinition = async () => {
+  const handleExportDefinition = async (format: 'excel' | 'markdown' | 'json') => {
     if (!selectedObject) {
       return;
     }
     try {
-      await window.sfx.exportObjectDefinition(selectedObject);
+      if (format === 'excel') {
+        await window.sfx.exportObjectDefinition(selectedObject);
+      } else if (format === 'markdown') {
+        await window.sfx.exportObjectDefinitionMarkdown(selectedObject);
+      } else {
+        await window.sfx.exportObjectDefinitionJson(selectedObject);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       window.sfx.rendererLog('error', `定義書出力失敗: ${msg}`);
@@ -209,13 +215,34 @@ const SObjectBrowserInner = (): JSX.Element => {
         <div className="border-t border-slate-200 dark:border-slate-700 flex flex-col" style={{ height: '50%' }}>
           <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{selectedObject}</span>
-            <button
-              type="button"
-              onClick={handleExportDefinition}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              定義書出力
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handleExportDefinition('excel')}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                title="Excel形式で定義書を出力"
+              >
+                Excel
+              </button>
+              <span className="text-xs text-slate-400">·</span>
+              <button
+                type="button"
+                onClick={() => handleExportDefinition('markdown')}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                title="Markdown形式で定義書を出力"
+              >
+                MD
+              </button>
+              <span className="text-xs text-slate-400">·</span>
+              <button
+                type="button"
+                onClick={() => handleExportDefinition('json')}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                title="JSON形式で定義書を出力"
+              >
+                JSON
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto text-xs">
             {describeLoading ? (

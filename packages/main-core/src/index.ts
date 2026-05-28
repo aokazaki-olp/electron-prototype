@@ -68,8 +68,8 @@ export {
   WRITE_REQUIRED,
 } from './sfApi.js';
 
-// エクスポート (CSV / Excel)
-export { exportCsv, exportQueryExcel, exportObjectDefinition, toCsvBuffer } from './export.js';
+// エクスポート (CSV / Excel / Markdown / JSON)
+export { exportCsv, exportQueryExcel, exportObjectDefinition, exportObjectDefinitionMarkdown, exportObjectDefinitionJson, toCsvBuffer } from './export.js';
 
 // main プロセス共通 setup
 export { registerProcessErrorHandlers, registerPermissionDenyAll } from './mainSetup.js';
