@@ -8,10 +8,19 @@ import { appLogger } from './logger.js';
 import { YahooLocalSearchClient } from '../services/yahoo/LocalSearchClient.js';
 import { YahooGeocoderClient } from '../services/yahoo/GeocoderClient.js';
 import { mapLocalSearchResponse, mapGeocoderResponse } from '../services/yahoo/mapper.js';
+import { HttpError } from '../libs/httpTypes.js';
 import type { PoiCandidate, PoiQueryType, PoiSearchResult } from '../ipc/contract.js';
 
 const ADDRESS_KEYWORDS = /[都道府県市区町村丁目番地号]/;
 const POSTAL_CODE_PATTERN = /^\d{3}-?\d{4}$/;
+
+const logApiError = (prefix: string, reason: unknown): void => {
+  if (reason instanceof HttpError) {
+    appLogger.warn(`${prefix}: HTTP ${reason.status} body=${JSON.stringify(reason.body)}`);
+  } else {
+    appLogger.warn(`${prefix}: ${String(reason)}`);
+  }
+};
 
 const detectQueryType = (query: string): PoiQueryType => {
   if (POSTAL_CODE_PATTERN.test(query.trim()) || ADDRESS_KEYWORDS.test(query)) {
@@ -56,13 +65,13 @@ export const poiSearch = async (query: string): Promise<PoiSearchResult> => {
   if (localResult.status === 'fulfilled') {
     candidates.push(...mapLocalSearchResponse(localResult.value));
   } else {
-    appLogger.warn(`[POI] ローカルサーチ失敗: ${String(localResult.reason)}`);
+    logApiError('[POI] ローカルサーチ失敗', localResult.reason);
   }
 
   if (geocoderResult.status === 'fulfilled') {
     candidates.push(...mapGeocoderResponse(geocoderResult.value));
   } else {
-    appLogger.warn(`[POI] ジオコーダ失敗: ${String(geocoderResult.reason)}`);
+    logApiError('[POI] ジオコーダ失敗', geocoderResult.reason);
   }
 
   return { candidates, queryType };
