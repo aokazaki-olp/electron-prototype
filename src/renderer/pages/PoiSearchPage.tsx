@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, ArrowLeft, X } from 'lucide-react';
+import { Search, Settings, X } from 'lucide-react';
 import type { PoiCandidate, PoiQueryType, PoiSearchResult } from '../../ipc/contract.js';
 
 const TOTAL_FIELDS = 10;
@@ -26,10 +26,10 @@ const joinParts = (a: string, b: string, sep = '-'): string =>
 const Empty = (): JSX.Element => <span className="text-slate-300">—</span>;
 
 interface Props {
-  onBack: () => void;
+  onSettings: () => void;
 }
 
-export const PoiSearchPage = ({ onBack }: Props): JSX.Element => {
+export const PoiSearchPage = ({ onSettings }: Props): JSX.Element => {
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<PoiSearchResult | null>(null);
   const [selected, setSelected] = useState<PoiCandidate | null>(null);
@@ -89,14 +89,15 @@ export const PoiSearchPage = ({ onBack }: Props): JSX.Element => {
     <div className="flex flex-col h-screen bg-white">
       {/* ヘッダー */}
       <header className="flex items-center gap-3 px-4 py-2 bg-slate-800 text-white flex-shrink-0">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 text-xs text-slate-300 hover:text-white px-2 py-1 rounded hover:bg-slate-700"
-        >
-          <ArrowLeft size={13} /> 戻る
-        </button>
-        <span className="text-slate-400 text-xs">|</span>
         <span className="font-semibold text-sm">POI検索テスト</span>
+        <div className="ml-auto">
+          <button
+            onClick={onSettings}
+            className="flex items-center gap-1 text-xs text-slate-300 hover:text-white px-2 py-1 rounded hover:bg-slate-700"
+          >
+            <Settings size={13} /> 設定
+          </button>
+        </div>
       </header>
 
       {/* 検索バー */}
