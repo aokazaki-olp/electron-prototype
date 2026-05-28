@@ -192,7 +192,8 @@ export const PoiSearchPage = ({ onSettings }: Props): JSX.Element => {
                 <tr>
                   {[
                     '正式名称', 'ソース', '充填率', '電話番号',
-                    '郵便番号', '都道府県', '市区町村',
+                    '郵便番号', '住所',
+                    '都道府県', '市区町村',
                     '大字・丁目', '街区・住居', '建物名',
                   ].map(h => (
                     <th
@@ -230,6 +231,11 @@ export const PoiSearchPage = ({ onSettings }: Props): JSX.Element => {
                       </td>
                       <td className="px-2 py-1.5 font-mono">{c.phone || <Empty />}</td>
                       <td className="px-2 py-1.5 font-mono">{c.postalCode || <Empty />}</td>
+                      <td className="px-2 py-1.5 max-w-[240px]">
+                        <span className="block truncate" title={c.fullAddress}>
+                          {c.fullAddress || <Empty />}
+                        </span>
+                      </td>
                       <td className="px-2 py-1.5">{c.address.prefecture || <Empty />}</td>
                       <td className="px-2 py-1.5">{c.address.city || <Empty />}</td>
                       <td className="px-2 py-1.5">

@@ -33,6 +33,7 @@ export interface PoiCandidate {
   id: string;
   officialName: string;
   postalCode: string;
+  fullAddress: string;
   address: PoiAddressFields;
   phone: string;
   lat: number | null;
