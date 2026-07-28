@@ -124,10 +124,10 @@ describe('SObjectBrowser — 定義書出力エラー', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: '定義書出力' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Excel' })).toBeInTheDocument();
     });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: '定義書出力' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Excel' }));
     });
     await waitFor(() => {
       expect(screen.getByText(/disk full/)).toBeInTheDocument();

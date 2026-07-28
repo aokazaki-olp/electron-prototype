@@ -87,6 +87,7 @@ export interface SObjectDescribe {
   name: string;
   label: string;
   labelPlural: string;
+  custom: boolean;
   fields: FieldDescribe[];
   childRelationships: Array<{
     childSObject: string;
