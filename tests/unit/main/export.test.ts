@@ -109,6 +109,12 @@ const CAST_CASES: CastCase[] = [
     expected: 'a\n1.5\n',
   },
   {
+    name: '負の数値は数式インジェクション対策の対象外 (Excel上での数値演算を維持するため)',
+    records: [{ a: -100 }],
+    columns: ['a'],
+    expected: 'a\n-100\n',
+  },
+  {
     name: 'NaN / Infinity は空文字',
     records: [{ a: NaN, b: Infinity, c: -Infinity }],
     columns: ['a', 'b', 'c'],
@@ -197,6 +203,12 @@ const CAST_CASES: CastCase[] = [
     records: [{ a: [{ Id: '003a', Name: '田中' }] }],
     columns: ['a'],
     expected: `a\n"${JSON.stringify([{ Id: '003a', Name: '田中' }]).replace(/"/g, '""')}"\n`,
+  },
+  {
+    name: '配列でない非対応オブジェクトは String() にフォールバックする',
+    records: [{ a: { x: 1 } }],
+    columns: ['a'],
+    expected: 'a\n[object Object]\n',
   },
   {
     name: 'columns の順序通りに並ぶ',
@@ -290,7 +302,7 @@ describe('exportCsv — dialog / ファイルI/O', () => {
   it('5000件のストリーミング書き出しで行の欠落・重複・順序崩れが無い', async () => {
     const records = Array.from({ length: 5000 }, (_, i) => ({ id: i, value: `v${i}` }));
     const buf = await runExportCsv(records, ['id', 'value'], { bom: false, lineEnding: 'LF' });
-    const rows = parse(buf, { columns: true }) as Array<{ id: string; value: string }>;
+    const rows: Array<{ id: string; value: string }> = parse(buf, { columns: true });
     expect(rows).toHaveLength(5000);
     expect(rows[0]).toEqual({ id: '0', value: 'v0' });
     expect(rows[4999]).toEqual({ id: '4999', value: 'v4999' });
@@ -324,9 +336,12 @@ describe('exportCsv — Salesforce レコードの実データ形状（ラウン
     const buf = await runExportCsv([record], columns, { bom: true, lineEnding: 'CRLF' });
 
     // BOM を除いた本文を実パーサーで読み戻す (csv-parse は BOM を透過的に無視する)
-    const rows = parse(buf, { columns: true, bom: true }) as Array<Record<string, string>>;
+    const rows: Array<Record<string, string>> = parse(buf, { columns: true, bom: true });
     expect(rows).toHaveLength(1);
-    const row = rows[0]!;
+    const [row] = rows;
+    if (!row) {
+      throw new Error('CSV から1行も読み戻せませんでした');
+    }
     expect(row['Id']).toBe('001xx000003DGb2AAG');
     expect(row['Name']).toBe('サンプル株式会社, Inc.');
     expect(row['IsActive']).toBe('true');
@@ -354,7 +369,7 @@ describe('exportCsv — Salesforce レコードの実データ形状（ラウン
     ];
     const columns = ['Id', 'Owner.Name', 'Owner'];
     const buf = await runExportCsv(records, columns, { bom: false, lineEnding: 'LF' });
-    const rows = parse(buf, { columns: true }) as Array<Record<string, string>>;
+    const rows: Array<Record<string, string>> = parse(buf, { columns: true });
     expect(rows).toHaveLength(2);
     expect(rows[0]).toEqual({ Id: '001', 'Owner.Name': '山田太郎', Owner: '' });
     expect(rows[1]).toEqual({ Id: '002', 'Owner.Name': '', Owner: '' });

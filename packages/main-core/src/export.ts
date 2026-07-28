@@ -48,6 +48,9 @@ const numberToPlainString = (value: number): string => {
   const [intPart = '', fracPart = ''] = mantissa.split('.');
 
   if (exponent > 0) {
+    // 正指数（|v|>=1e21）は double の有効桁数（最大17桁程度）を大きく超えるため、
+    // 実際には fracPart.length <= exponent の分岐にしかならない。
+    // else 分岐は仕様上あり得る形として防御的に残す。
     if (fracPart.length <= exponent) {
       return sign + intPart + fracPart.padEnd(exponent, '0');
     }
@@ -56,42 +59,50 @@ const numberToPlainString = (value: number): string => {
   return sign + '0.' + '0'.repeat(-exponent - 1) + intPart + fracPart;
 };
 
+// CSVインジェクション対策（Excel等でセル値が数式として実行されるのを防ぐ）の対象文字。
+// csv-stringify 標準の `escape_formulas` オプションと同じ文字集合を使うが、そのオプション自体は
+// 採用しない（下記 buildCsvStringifyOptions のコメント参照）。
+const FORMULA_TRIGGER_CHARS = new Set([
+  '=', '+', '-', '@', '\t', '\r',
+  '＝', '＋', '－', '＠', // 全角 ＝＋－＠（Unicode正規化トリック対策）
+]);
+
+/** 文字列セル値が数式実行トリガー文字で始まる場合、先頭に `'` を付与して text 扱いにする */
+const escapeFormulaPrefix = (v: string): string =>
+  FORMULA_TRIGGER_CHARS.has(v.charAt(0)) ? `'${v}` : v;
+
 /**
  * CSV 出力の cast・エスケープ設定を一元化する。`toCsvBuffer`（同期）と `exportCsv`
  * （ストリーミング、実運用で IPC 経由に呼ばれる本体）の両方から参照することで、
  * 実装が乖離してどちらか一方だけ古いバグを残す事故を防ぐ。
  *
+ * - `string`: セル値が `=`/`+`/`-`/`@`（全角含む）等で始まる場合に先頭へ `'` を付与し、
+ *   Excel 等で数式として実行されるのを防ぐ（CSVインジェクション対策）。csv-stringify 標準の
+ *   `escape_formulas` オプションは cast 後の**全ての値**（number/boolean/date cast の結果も
+ *   含む）に無差別適用されるため、それを使うと負の通貨額（例: `cast.number` が返す `"-100"`）
+ *   まで text セルに落ちてしまい、Excel で SUM・ソート等の数値演算が効かなくなる副作用がある
+ *   （検証済み）。そのため `escape_formulas` オプション自体は使わず、文字列型の元値
+ *   （Salesforce の Name/Phone/Description 等の自由入力項目）にのみ限定して自前で適用する
  * - `boolean`: csv-stringify の既定は `true→"1"` / `false→""` で、false と空欄の
  *   区別がつかなくなるため `'true'`/`'false'` 文字列に固定する
  * - `number`: 指数表記を避け常に10進文字列にする（{@link numberToPlainString} 参照）
  * - `date`: 既定はミリ秒タイムスタンプの数値文字列になるため ISO 8601 文字列に固定する
  *   （SF REST API のレスポンスは日時を文字列で返すため通常は通らない経路だが、
  *   将来 Date インスタンスが紛れ込んだ場合の防御として明示する）
- * - `object`: サブクエリの関係項目（例: `(SELECT Id FROM Contacts)`）は
+ * - `object`: csv-stringify は `null`/`undefined` をこの cast に渡さず既定で空文字化するため
+ *   ここで null チェックは不要。サブクエリの関係項目（例: `(SELECT Id FROM Contacts)`）は
  *   flattenRecord で配列のまま残ることがあるため JSON 文字列化する
  *   （既定のまま `String(array)` に任せると `"[object Object],[object Object]"`
  *   のような無意味な文字列になる）。それ以外の非対応オブジェクトは `String()` に委譲する
- * - `escape_formulas`: セル値が `=`/`+`/`-`/`@`（全角含む）等で始まる場合に
- *   先頭へ `'` を付与し、Excel 等で数式として実行されるのを防ぐ
- *   （CSVインジェクション対策。日本の携帯電話番号 `+81-...` のように `+`/`-`始まりの
- *   正当なテキストも対象になるが、数式実行防止を優先する）
  */
 const buildCsvStringifyOptions = (options: CsvExportOptions): CsvStringifyOptions => ({
   record_delimiter: options.lineEnding === 'CRLF' ? '\r\n' : '\n',
-  escape_formulas: true,
   cast: {
+    string: (v: string) => escapeFormulaPrefix(v),
     boolean: (v: boolean) => v ? 'true' : 'false',
     number: (v: number) => Number.isFinite(v) ? numberToPlainString(v) : '',
     date: (v: Date) => v.toISOString(),
-    object: (v: unknown) => {
-      if (v == null) {
-        return '';
-      }
-      if (Array.isArray(v)) {
-        return JSON.stringify(v);
-      }
-      return String(v);
-    },
+    object: (v: unknown) => Array.isArray(v) ? JSON.stringify(v) : String(v),
   },
 });
 
