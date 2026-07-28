@@ -357,22 +357,24 @@ export const exportObjectDefinitionMarkdown = async (
  * 指定オブジェクト群の定義書をフォルダに一括出力する。
  * 各オブジェクトを `${objectName}.md` として書き出し、
  * `README.md` に全オブジェクトへのリンク付き TOC を生成する。
- * フォルダ選択でユーザーがキャンセルした場合は何もしない。
+ * フォルダ選択でユーザーがキャンセルした場合は null を返す。
  *
  * @param profileId - 対象プロファイル ID
  * @param objectNames - 出力対象の sObject API 名リスト
+ * @returns 成功件数と対象総数。呼び出し元は `succeeded < total` で部分失敗を検知できる
+ * @throws {Error} 全件失敗した場合
  */
 export const exportObjectDefinitionsMdFolder = async (
   profileId: string,
   objectNames: string[],
-): Promise<void> => {
+): Promise<{ succeeded: number; total: number } | null> => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     title: 'Markdown定義書の出力先フォルダを選択',
     properties: ['openDirectory', 'createDirectory'],
   });
 
   if (canceled || filePaths.length === 0 || !filePaths[0]) {
-    return;
+    return null;
   }
 
   const outDir = filePaths[0];
@@ -424,6 +426,7 @@ export const exportObjectDefinitionsMdFolder = async (
   await writeFile(join(outDir, 'README.md'), readmeLines.join('\n'), 'utf-8');
 
   log.info(`[Export] Markdown一括定義書出力完了: ${succeeded}/${total}件 → ${outDir}`);
+  return { succeeded, total };
 };
 
 // ============================================================================

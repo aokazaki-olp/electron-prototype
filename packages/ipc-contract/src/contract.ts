@@ -278,8 +278,11 @@ export interface SalesforceExplorerApi {
   exportObjectDefinition(objectName: string): Promise<void>;
   exportObjectDefinitionMarkdown(objectName: string): Promise<void>;
   exportObjectDefinitionJson(objectName: string): Promise<void>;
-  /** フォルダを選択し、objectNames の定義書を個別 MD ファイルで出力。README.md に TOC を生成する。 */
-  exportObjectsMdFolder(objectNames: string[]): Promise<void>;
+  /**
+   * フォルダを選択し、objectNames の定義書を個別 MD ファイルで出力。README.md に TOC を生成する。
+   * ダイアログをキャンセルした場合は null を返す。
+   */
+  exportObjectsMdFolder(objectNames: string[]): Promise<{ succeeded: number; total: number } | null>;
   /** 現在の LogViewer 内容を .log ファイルに保存する。ユーザーが dialog をキャンセルした場合は何もせず返る。 */
   exportLogFile(logs: LogEntry[]): Promise<void>;
 

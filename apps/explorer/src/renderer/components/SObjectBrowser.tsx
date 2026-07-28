@@ -135,7 +135,12 @@ const SObjectBrowserInner = (): JSX.Element => {
       return;
     }
     try {
-      await window.sfx.exportObjectsMdFolder(filtered.map(o => o.name));
+      const result = await window.sfx.exportObjectsMdFolder(filtered.map(o => o.name));
+      if (result && result.succeeded < result.total) {
+        const msg = `一括MD定義書出力: ${result.succeeded}/${result.total}件のみ成功しました`;
+        window.sfx.rendererLog('error', msg);
+        showToast('error', msg);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       window.sfx.rendererLog('error', `一括MD定義書出力失敗: ${msg}`);
