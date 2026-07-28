@@ -12,6 +12,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { stringify, stringify as stringifySync } from 'csv-stringify/sync';
 import { stringify as stringifyStream } from 'csv-stringify';
+import type { Options as CsvStringifyOptions } from 'csv-stringify';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import ExcelJS from 'exceljs';
@@ -25,6 +26,74 @@ void stringify;
 // ============================================================================
 // CSV
 // ============================================================================
+
+/**
+ * JS の `Number#toString`（`String(number)` が内部で使う変換）は `|v| < 1e-6` または
+ * `|v| >= 1e21` で指数表記 (`"1e-7"` 等) になる。Salesforce の Percent/Number 項目は
+ * 小数桁数が大きくなることがあり、指数表記のまま出力すると一般的な表計算ソフトで
+ * 誤読・誤解を招くため、常に非指数表記の10進文字列へ展開する。
+ */
+const numberToPlainString = (value: number): string => {
+  if (Object.is(value, -0)) {
+    return '0';
+  }
+  const str = String(value);
+  if (!/e/i.test(str)) {
+    return str;
+  }
+  const sign = str.startsWith('-') ? '-' : '';
+  const abs = sign ? str.slice(1) : str;
+  const [mantissa = '', expPart = '0'] = abs.split(/e/i);
+  const exponent = Number(expPart);
+  const [intPart = '', fracPart = ''] = mantissa.split('.');
+
+  if (exponent > 0) {
+    if (fracPart.length <= exponent) {
+      return sign + intPart + fracPart.padEnd(exponent, '0');
+    }
+    return sign + intPart + fracPart.slice(0, exponent) + '.' + fracPart.slice(exponent);
+  }
+  return sign + '0.' + '0'.repeat(-exponent - 1) + intPart + fracPart;
+};
+
+/**
+ * CSV 出力の cast・エスケープ設定を一元化する。`toCsvBuffer`（同期）と `exportCsv`
+ * （ストリーミング、実運用で IPC 経由に呼ばれる本体）の両方から参照することで、
+ * 実装が乖離してどちらか一方だけ古いバグを残す事故を防ぐ。
+ *
+ * - `boolean`: csv-stringify の既定は `true→"1"` / `false→""` で、false と空欄の
+ *   区別がつかなくなるため `'true'`/`'false'` 文字列に固定する
+ * - `number`: 指数表記を避け常に10進文字列にする（{@link numberToPlainString} 参照）
+ * - `date`: 既定はミリ秒タイムスタンプの数値文字列になるため ISO 8601 文字列に固定する
+ *   （SF REST API のレスポンスは日時を文字列で返すため通常は通らない経路だが、
+ *   将来 Date インスタンスが紛れ込んだ場合の防御として明示する）
+ * - `object`: サブクエリの関係項目（例: `(SELECT Id FROM Contacts)`）は
+ *   flattenRecord で配列のまま残ることがあるため JSON 文字列化する
+ *   （既定のまま `String(array)` に任せると `"[object Object],[object Object]"`
+ *   のような無意味な文字列になる）。それ以外の非対応オブジェクトは `String()` に委譲する
+ * - `escape_formulas`: セル値が `=`/`+`/`-`/`@`（全角含む）等で始まる場合に
+ *   先頭へ `'` を付与し、Excel 等で数式として実行されるのを防ぐ
+ *   （CSVインジェクション対策。日本の携帯電話番号 `+81-...` のように `+`/`-`始まりの
+ *   正当なテキストも対象になるが、数式実行防止を優先する）
+ */
+const buildCsvStringifyOptions = (options: CsvExportOptions): CsvStringifyOptions => ({
+  record_delimiter: options.lineEnding === 'CRLF' ? '\r\n' : '\n',
+  escape_formulas: true,
+  cast: {
+    boolean: (v: boolean) => v ? 'true' : 'false',
+    number: (v: number) => Number.isFinite(v) ? numberToPlainString(v) : '',
+    date: (v: Date) => v.toISOString(),
+    object: (v: unknown) => {
+      if (v == null) {
+        return '';
+      }
+      if (Array.isArray(v)) {
+        return JSON.stringify(v);
+      }
+      return String(v);
+    },
+  },
+});
 
 /**
  * レコード配列と列名から CSV バイナリを生成する。BOM 付与・改行コード切替に対応。
@@ -41,16 +110,10 @@ export const toCsvBuffer = (
 ): Buffer => {
   const rows = [
     columns,
-    ...records.map(r => columns.map(col => r[col] ?? '')),
+    ...records.map(r => columns.map(col => r[col])),
   ];
 
-  const csv = stringifySync(rows, {
-    record_delimiter: options.lineEnding === 'CRLF' ? '\r\n' : '\n',
-    cast: {
-      object: (v: unknown) => v == null ? '' : String(v),
-      number: (v) => Number.isFinite(v) ? String(v) : '',
-    },
-  });
+  const csv = stringifySync(rows, buildCsvStringifyOptions(options));
 
   const content = options.bom ? '﻿' + csv : csv;
   return Buffer.from(content, 'utf-8');
@@ -89,11 +152,7 @@ export const exportCsv = async (
   const stringifier = stringifyStream({
     header: true,
     columns,
-    record_delimiter: options.lineEnding === 'CRLF' ? '\r\n' : '\n',
-    cast: {
-      object: (v: unknown) => v == null ? '' : String(v),
-      number: (v) => Number.isFinite(v) ? String(v) : '',
-    },
+    ...buildCsvStringifyOptions(options),
   });
 
   // レコード配列を pull 型 Readable に変換して pipeline で繋ぐ
