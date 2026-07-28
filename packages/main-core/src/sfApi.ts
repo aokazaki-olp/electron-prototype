@@ -174,15 +174,19 @@ const getClient = (profileId: string) => {
   return SfClient.create<unknown>(instanceUrl, accessToken, { logger: appLogger });
 };
 
-// Bulk API v2 の results エンドポイント (/jobs/query/{id}/results) は text/csv を返す。
+// Bulk API v2 の results 系エンドポイント（Query: /jobs/query/{id}/results、
+// Ingest: /jobs/ingest/{id}/successfulResults・failedResults）は text/csv を返す。
 // SalesforceApiClient のデフォルト Accept: application/json を上書きしないと
-// Salesforce が 406 を返すため、results パスのみ Accept を text/csv に差し替えるデコレータを適用する。
+// Salesforce が 406 を返すため、パス末尾が "results"（大文字小文字問わず）の場合に
+// Accept を text/csv に差し替えるデコレータを適用する。Query/Ingest どちらの呼び出しにも
+// このクライアントを渡せば対応できる汎用デコレータ。
 // packages/libs は編集禁止（CODING_RULES §9 / §10.7）のため transport 層で対処する。
 const getBulkClient = (profileId: string) => {
   const baseClient = getClient(profileId);
   return baseClient.extend(t => ({
     fetch: (url: string, options?: FetchOptions) => {
-      if (url.includes('/results')) {
+      const path = new URL(url).pathname;
+      if (path.toLowerCase().endsWith('results')) {
         const headers = { ...(options?.headers ?? {}), Accept: 'text/csv' };
         return t.fetch(url, { ...options, headers });
       }
