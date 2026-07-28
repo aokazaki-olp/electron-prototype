@@ -12,6 +12,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { stringify, stringify as stringifySync } from 'csv-stringify/sync';
 import { stringify as stringifyStream } from 'csv-stringify';
+import type { Options as CsvStringifyOptions } from 'csv-stringify';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import ExcelJS from 'exceljs';
@@ -25,6 +26,89 @@ void stringify;
 // ============================================================================
 // CSV
 // ============================================================================
+
+// UTF-8 の BOM (byte order mark)。toCsvBuffer（文字列結合）と exportCsv（ストリーム書き込み）
+// の両方で同じ文字を使うことを保証するため、リテラルを1箇所にまとめる。
+const UTF8_BOM = '﻿';
+
+/**
+ * JS の `Number#toString`（`String(number)` が内部で使う変換）は `|v| < 1e-6` または
+ * `|v| >= 1e21` で指数表記 (`"1e-7"` 等) になる。Salesforce の Percent/Number 項目は
+ * 小数桁数が大きくなることがあり、指数表記のまま出力すると一般的な表計算ソフトで
+ * 誤読・誤解を招くため、常に非指数表記の10進文字列へ展開する。
+ */
+const numberToPlainString = (value: number): string => {
+  if (Object.is(value, -0)) {
+    return '0';
+  }
+  const str = String(value);
+  if (!/e/i.test(str)) {
+    return str;
+  }
+  const sign = str.startsWith('-') ? '-' : '';
+  const abs = sign ? str.slice(1) : str;
+  const [mantissa = '', expPart = '0'] = abs.split(/e/i);
+  const exponent = Number(expPart);
+  const [intPart = '', fracPart = ''] = mantissa.split('.');
+
+  if (exponent > 0) {
+    // 正指数（|v|>=1e21）は double の有効桁数（最大17桁程度）を大きく超えるため、
+    // 実際には fracPart.length <= exponent の分岐にしかならない。
+    // else 分岐は仕様上あり得る形として防御的に残す。
+    if (fracPart.length <= exponent) {
+      return sign + intPart + fracPart.padEnd(exponent, '0');
+    }
+    return sign + intPart + fracPart.slice(0, exponent) + '.' + fracPart.slice(exponent);
+  }
+  return sign + '0.' + '0'.repeat(-exponent - 1) + intPart + fracPart;
+};
+
+// CSVインジェクション対策（Excel等でセル値が数式として実行されるのを防ぐ）の対象文字。
+// csv-stringify 標準の `escape_formulas` オプションと同じ文字集合を使うが、そのオプション自体は
+// 採用しない（下記 buildCsvStringifyOptions のコメント参照）。
+const FORMULA_TRIGGER_CHARS = new Set([
+  '=', '+', '-', '@', '\t', '\r',
+  '＝', '＋', '－', '＠', // 全角 ＝＋－＠（Unicode正規化トリック対策）
+]);
+
+/** 文字列セル値が数式実行トリガー文字で始まる場合、先頭に `'` を付与して text 扱いにする */
+const escapeFormulaPrefix = (v: string): string =>
+  FORMULA_TRIGGER_CHARS.has(v.charAt(0)) ? `'${v}` : v;
+
+/**
+ * CSV 出力の cast・エスケープ設定を一元化する。`toCsvBuffer`（同期）と `exportCsv`
+ * （ストリーミング、実運用で IPC 経由に呼ばれる本体）の両方から参照することで、
+ * 実装が乖離してどちらか一方だけ古いバグを残す事故を防ぐ。
+ *
+ * - `string`: セル値が `=`/`+`/`-`/`@`（全角含む）等で始まる場合に先頭へ `'` を付与し、
+ *   Excel 等で数式として実行されるのを防ぐ（CSVインジェクション対策）。csv-stringify 標準の
+ *   `escape_formulas` オプションは cast 後の**全ての値**（number/boolean/date cast の結果も
+ *   含む）に無差別適用されるため、それを使うと負の通貨額（例: `cast.number` が返す `"-100"`）
+ *   まで text セルに落ちてしまい、Excel で SUM・ソート等の数値演算が効かなくなる副作用がある
+ *   （検証済み）。そのため `escape_formulas` オプション自体は使わず、文字列型の元値
+ *   （Salesforce の Name/Phone/Description 等の自由入力項目）にのみ限定して自前で適用する
+ * - `boolean`: csv-stringify の既定は `true→"1"` / `false→""` で、false と空欄の
+ *   区別がつかなくなるため `'true'`/`'false'` 文字列に固定する
+ * - `number`: 指数表記を避け常に10進文字列にする（{@link numberToPlainString} 参照）
+ * - `date`: 既定はミリ秒タイムスタンプの数値文字列になるため ISO 8601 文字列に固定する
+ *   （SF REST API のレスポンスは日時を文字列で返すため通常は通らない経路だが、
+ *   将来 Date インスタンスが紛れ込んだ場合の防御として明示する）
+ * - `object`: csv-stringify は `null`/`undefined` をこの cast に渡さず既定で空文字化するため
+ *   ここで null チェックは不要。サブクエリの関係項目（例: `(SELECT Id FROM Contacts)`）は
+ *   flattenRecord で配列のまま残ることがあるため JSON 文字列化する
+ *   （既定のまま `String(array)` に任せると `"[object Object],[object Object]"`
+ *   のような無意味な文字列になる）。それ以外の非対応オブジェクトは `String()` に委譲する
+ */
+const buildCsvStringifyOptions = (options: CsvExportOptions): CsvStringifyOptions => ({
+  record_delimiter: options.lineEnding === 'CRLF' ? '\r\n' : '\n',
+  cast: {
+    string: (v: string) => escapeFormulaPrefix(v),
+    boolean: (v: boolean) => v ? 'true' : 'false',
+    number: (v: number) => Number.isFinite(v) ? numberToPlainString(v) : '',
+    date: (v: Date) => v.toISOString(),
+    object: (v: unknown) => Array.isArray(v) ? JSON.stringify(v) : String(v),
+  },
+});
 
 /**
  * レコード配列と列名から CSV バイナリを生成する。BOM 付与・改行コード切替に対応。
@@ -41,18 +125,12 @@ export const toCsvBuffer = (
 ): Buffer => {
   const rows = [
     columns,
-    ...records.map(r => columns.map(col => r[col] ?? '')),
+    ...records.map(r => columns.map(col => r[col])),
   ];
 
-  const csv = stringifySync(rows, {
-    record_delimiter: options.lineEnding === 'CRLF' ? '\r\n' : '\n',
-    cast: {
-      object: (v: unknown) => v == null ? '' : String(v),
-      number: (v) => Number.isFinite(v) ? String(v) : '',
-    },
-  });
+  const csv = stringifySync(rows, buildCsvStringifyOptions(options));
 
-  const content = options.bom ? '﻿' + csv : csv;
+  const content = options.bom ? UTF8_BOM + csv : csv;
   return Buffer.from(content, 'utf-8');
 };
 
@@ -83,17 +161,13 @@ export const exportCsv = async (
   // BOM は最初にダイレクトに書き込み、その後 stringifier の出力を流し込む。
   const fileStream = createWriteStream(result.filePath, { encoding: 'utf-8' });
   if (options.bom) {
-    fileStream.write('﻿');
+    fileStream.write(UTF8_BOM);
   }
 
   const stringifier = stringifyStream({
     header: true,
     columns,
-    record_delimiter: options.lineEnding === 'CRLF' ? '\r\n' : '\n',
-    cast: {
-      object: (v: unknown) => v == null ? '' : String(v),
-      number: (v) => Number.isFinite(v) ? String(v) : '',
-    },
+    ...buildCsvStringifyOptions(options),
   });
 
   // レコード配列を pull 型 Readable に変換して pipeline で繋ぐ
