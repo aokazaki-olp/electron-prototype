@@ -27,6 +27,10 @@ void stringify;
 // CSV
 // ============================================================================
 
+// UTF-8 の BOM (byte order mark)。toCsvBuffer（文字列結合）と exportCsv（ストリーム書き込み）
+// の両方で同じ文字を使うことを保証するため、リテラルを1箇所にまとめる。
+const UTF8_BOM = '﻿';
+
 /**
  * JS の `Number#toString`（`String(number)` が内部で使う変換）は `|v| < 1e-6` または
  * `|v| >= 1e21` で指数表記 (`"1e-7"` 等) になる。Salesforce の Percent/Number 項目は
@@ -126,7 +130,7 @@ export const toCsvBuffer = (
 
   const csv = stringifySync(rows, buildCsvStringifyOptions(options));
 
-  const content = options.bom ? '﻿' + csv : csv;
+  const content = options.bom ? UTF8_BOM + csv : csv;
   return Buffer.from(content, 'utf-8');
 };
 
@@ -157,7 +161,7 @@ export const exportCsv = async (
   // BOM は最初にダイレクトに書き込み、その後 stringifier の出力を流し込む。
   const fileStream = createWriteStream(result.filePath, { encoding: 'utf-8' });
   if (options.bom) {
-    fileStream.write('﻿');
+    fileStream.write(UTF8_BOM);
   }
 
   const stringifier = stringifyStream({
