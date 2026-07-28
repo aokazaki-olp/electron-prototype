@@ -17,7 +17,7 @@ import { Readable } from 'node:stream';
 import ExcelJS from 'exceljs';
 import { log } from './logger.js';
 import { describeObject } from './sfApi.js';
-import type { CsvExportOptions, SObjectDescribe } from '@app/ipc-contract';
+import type { CsvExportOptions, ObjectDefinitionsMdFolderResult, SObjectDescribe } from '@app/ipc-contract';
 
 // stringify (sync) は単体テストで使う公開 API のため import を残す
 void stringify;
@@ -367,7 +367,7 @@ export const exportObjectDefinitionMarkdown = async (
 export const exportObjectDefinitionsMdFolder = async (
   profileId: string,
   objectNames: string[],
-): Promise<{ succeeded: number; total: number } | null> => {
+): Promise<ObjectDefinitionsMdFolderResult | null> => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     title: 'Markdown定義書の出力先フォルダを選択',
     properties: ['openDirectory', 'createDirectory'],
