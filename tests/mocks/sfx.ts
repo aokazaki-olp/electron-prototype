@@ -29,7 +29,7 @@ export const makeMockSfx = (): SalesforceExplorerApi => ({
 
   listSObjects: vi.fn().mockResolvedValue([]),
   describeObject: vi.fn().mockResolvedValue({
-    name: '', label: '', labelPlural: '', fields: [], childRelationships: [],
+    name: '', label: '', labelPlural: '', custom: false, fields: [], childRelationships: [],
   }),
   query: vi.fn().mockResolvedValue({
     totalSize: 0, done: true, records: [], fetchedCount: 0,
@@ -54,6 +54,9 @@ export const makeMockSfx = (): SalesforceExplorerApi => ({
   exportCsv: vi.fn().mockResolvedValue(undefined),
   exportQueryExcel: vi.fn().mockResolvedValue(undefined),
   exportObjectDefinition: vi.fn().mockResolvedValue(undefined),
+  exportObjectDefinitionMarkdown: vi.fn().mockResolvedValue(undefined),
+  exportObjectDefinitionJson: vi.fn().mockResolvedValue(undefined),
+  exportObjectsMdFolder: vi.fn().mockResolvedValue(undefined),
   exportLogFile: vi.fn().mockResolvedValue(undefined),
 
   getRecentLogs: vi.fn().mockResolvedValue([]),
