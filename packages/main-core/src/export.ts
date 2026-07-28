@@ -281,6 +281,9 @@ export const exportObjectDefinition = async (
 // Markdown — オブジェクト定義書
 // ============================================================================
 
+// Salesforce sObject API名（標準・カスタム・namespace付き）に許可される文字パターン
+const SOBJECT_NAME_PATTERN = /^[A-Za-z0-9_]+$/;
+
 /** Markdown テーブルセル内の `|` と改行をエスケープ */
 const escMd = (v: unknown): string => {
   if (v == null || v === '') {
@@ -384,6 +387,12 @@ export const exportObjectDefinitionsMdFolder = async (
     if (!objectName) {
       continue;
     }
+    // Salesforce sObject API名は英数字・アンダースコアのみ（namespace__Object__c 等含む）。
+    // ファイル名として join() に渡す前に検証し、パストラバーサル文字列（../ 等）の混入を防ぐ。
+    if (!SOBJECT_NAME_PATTERN.test(objectName)) {
+      log.warn(`[Export] MD定義書スキップ (不正なオブジェクト名): ${objectName}`);
+      continue;
+    }
     try {
       const describe = await describeObject(profileId, objectName);
       await writeFile(join(outDir, `${objectName}.md`), buildObjectMdLines(describe).join('\n'), 'utf-8');
@@ -397,12 +406,16 @@ export const exportObjectDefinitionsMdFolder = async (
     }
   }
 
+  if (succeeded === 0 && total > 0) {
+    throw new Error(`Markdown定義書の出力に全件失敗しました（対象 ${total}件）`);
+  }
+
   const now = new Date();
   const readmeLines = [
     '# Salesforce オブジェクト定義書',
     '',
     `出力日時: ${now.toLocaleString('ja-JP')}  `,
-    `オブジェクト数: ${succeeded}件`,
+    `オブジェクト数: ${succeeded}/${total}件`,
     '',
     '| API名 | ラベル | フィールド数 | カスタム |',
     '|---|---|---|---|',
