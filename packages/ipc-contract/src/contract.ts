@@ -87,6 +87,7 @@ export interface SObjectDescribe {
   name: string;
   label: string;
   labelPlural: string;
+  custom: boolean;
   fields: FieldDescribe[];
   childRelationships: Array<{
     childSObject: string;
@@ -100,6 +101,11 @@ export interface QueryResult {
   done: boolean;
   records: Record<string, unknown>[];
   fetchedCount: number;
+}
+
+export interface ObjectDefinitionsMdFolderResult {
+  succeeded: number;
+  total: number;
 }
 
 // ============================================================================
@@ -212,6 +218,9 @@ export const IPC = {
   EXPORT_CSV: 'export:csv',
   EXPORT_QUERY_EXCEL: 'export:query-excel',
   EXPORT_OBJECT_DEFINITION: 'export:object-definition',
+  EXPORT_OBJECT_DEFINITION_MARKDOWN: 'export:object-definition-markdown',
+  EXPORT_OBJECT_DEFINITION_JSON: 'export:object-definition-json',
+  EXPORT_OBJECT_DEFINITIONS_MD_FOLDER: 'export:object-definitions-md-folder',
   EXPORT_LOG_FILE: 'export:log-file',
 
   // ログ（push型 main → renderer）
@@ -272,6 +281,13 @@ export interface SalesforceExplorerApi {
   exportCsv(records: Record<string, unknown>[], columns: string[], options: CsvExportOptions): Promise<void>;
   exportQueryExcel(records: Record<string, unknown>[], columns: string[]): Promise<void>;
   exportObjectDefinition(objectName: string): Promise<void>;
+  exportObjectDefinitionMarkdown(objectName: string): Promise<void>;
+  exportObjectDefinitionJson(objectName: string): Promise<void>;
+  /**
+   * フォルダを選択し、objectNames の定義書を個別 MD ファイルで出力。README.md に TOC を生成する。
+   * ダイアログをキャンセルした場合は null を返す。
+   */
+  exportObjectDefinitionsMdFolder(objectNames: string[]): Promise<ObjectDefinitionsMdFolderResult | null>;
   /** 現在の LogViewer 内容を .log ファイルに保存する。ユーザーが dialog をキャンセルした場合は何もせず返る。 */
   exportLogFile(logs: LogEntry[]): Promise<void>;
 
@@ -298,6 +314,9 @@ export type LiteApi = Pick<SalesforceExplorerApi,
   | 'exportCsv'
   | 'exportQueryExcel'
   | 'exportObjectDefinition'
+  | 'exportObjectDefinitionMarkdown'
+  | 'exportObjectDefinitionJson'
+  | 'exportObjectDefinitionsMdFolder'
   | 'getRecentLogs'
   | 'onLogEntry'
   | 'rendererLog'
@@ -318,13 +337,13 @@ export const EXPECTED_API_KEYS = {
     'saveSoqlFile', 'openSoqlFile',
     'loadTabs', 'saveTabs',
     'loadColumnSizes', 'saveColumnSizes',
-    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportLogFile',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportObjectDefinitionsMdFolder', 'exportLogFile',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
   compass: [
     'loadSettings', 'loadProfiles', 'getAuthState',
     'listSObjects', 'describeObject', 'query',
-    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportObjectDefinitionsMdFolder',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
 } as const satisfies {

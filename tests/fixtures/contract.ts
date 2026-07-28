@@ -62,6 +62,7 @@ export const makeSObjectDescribe = (
   name: 'Account',
   label: 'アカウント',
   labelPlural: 'アカウント',
+  custom: false,
   fields: [makeFieldDescribe(), makeFieldDescribe({ name: 'Name', label: '名前', type: 'string', length: 255 })],
   childRelationships: [],
   ...overrides,

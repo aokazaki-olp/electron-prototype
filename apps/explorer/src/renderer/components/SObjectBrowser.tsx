@@ -130,12 +130,36 @@ const SObjectBrowserInner = (): JSX.Element => {
     }
   };
 
-  const handleExportDefinition = async () => {
+  const handleExportMdFolder = async () => {
+    if (filtered.length === 0) {
+      return;
+    }
+    try {
+      const result = await window.sfx.exportObjectDefinitionsMdFolder(filtered.map(o => o.name));
+      if (result && result.succeeded < result.total) {
+        const msg = `一括MD定義書出力: ${result.succeeded}/${result.total}件のみ成功しました`;
+        window.sfx.rendererLog('error', msg);
+        showToast('error', msg);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      window.sfx.rendererLog('error', `一括MD定義書出力失敗: ${msg}`);
+      showToast('error', `一括MD定義書出力に失敗しました: ${msg}`);
+    }
+  };
+
+  const handleExportDefinition = async (format: 'excel' | 'markdown' | 'json') => {
     if (!selectedObject) {
       return;
     }
     try {
-      await window.sfx.exportObjectDefinition(selectedObject);
+      if (format === 'excel') {
+        await window.sfx.exportObjectDefinition(selectedObject);
+      } else if (format === 'markdown') {
+        await window.sfx.exportObjectDefinitionMarkdown(selectedObject);
+      } else {
+        await window.sfx.exportObjectDefinitionJson(selectedObject);
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       window.sfx.rendererLog('error', `定義書出力失敗: ${msg}`);
@@ -159,6 +183,16 @@ const SObjectBrowserInner = (): JSX.Element => {
               className="w-full pl-7 pr-2 py-1 text-sm border border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 rounded outline-none focus:border-blue-500"
             />
           </div>
+          <button
+            type="button"
+            onClick={handleExportMdFolder}
+            disabled={filtered.length === 0}
+            className="p-1 text-xs text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 disabled:opacity-50 whitespace-nowrap"
+            title={`表示中の ${filtered.length} 件を Markdown で一括出力`}
+            aria-label="フィルタ結果をMarkdown定義書として一括出力"
+          >
+            MD↓
+          </button>
           <button
             type="button"
             onClick={loadSObjects}
@@ -209,13 +243,34 @@ const SObjectBrowserInner = (): JSX.Element => {
         <div className="border-t border-slate-200 dark:border-slate-700 flex flex-col" style={{ height: '50%' }}>
           <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
             <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{selectedObject}</span>
-            <button
-              type="button"
-              onClick={handleExportDefinition}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
-            >
-              定義書出力
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handleExportDefinition('excel')}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                title="Excel形式で定義書を出力"
+              >
+                Excel
+              </button>
+              <span className="text-xs text-slate-400">·</span>
+              <button
+                type="button"
+                onClick={() => handleExportDefinition('markdown')}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                title="Markdown形式で定義書を出力"
+              >
+                MD
+              </button>
+              <span className="text-xs text-slate-400">·</span>
+              <button
+                type="button"
+                onClick={() => handleExportDefinition('json')}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                title="JSON形式で定義書を出力"
+              >
+                JSON
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto text-xs">
             {describeLoading ? (

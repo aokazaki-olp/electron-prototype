@@ -325,6 +325,7 @@ export const describeObject = async (profileId: string, objectName: string): Pro
     name: String(raw['name'] ?? ''),
     label: String(raw['label'] ?? ''),
     labelPlural: String(raw['labelPlural'] ?? ''),
+    custom: Boolean(raw['custom']),
     fields: Array.isArray(raw['fields']) ? toFields(raw['fields']) : [],
     childRelationships: Array.isArray(raw['childRelationships']) ? toChildRels(raw['childRelationships']) : [],
   };

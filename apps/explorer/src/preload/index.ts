@@ -65,6 +65,12 @@ const api = {
     ipcRenderer.invoke(IPC.EXPORT_QUERY_EXCEL, records, columns),
   exportObjectDefinition: (objectName: string) =>
     ipcRenderer.invoke(IPC.EXPORT_OBJECT_DEFINITION, objectName),
+  exportObjectDefinitionMarkdown: (objectName: string) =>
+    ipcRenderer.invoke(IPC.EXPORT_OBJECT_DEFINITION_MARKDOWN, objectName),
+  exportObjectDefinitionJson: (objectName: string) =>
+    ipcRenderer.invoke(IPC.EXPORT_OBJECT_DEFINITION_JSON, objectName),
+  exportObjectDefinitionsMdFolder: (objectNames: string[]) =>
+    ipcRenderer.invoke(IPC.EXPORT_OBJECT_DEFINITIONS_MD_FOLDER, objectNames),
   exportLogFile: (logs: LogEntry[]) =>
     ipcRenderer.invoke(IPC.EXPORT_LOG_FILE, logs),
 
