@@ -106,6 +106,86 @@ describe('SObjectBrowser — 検索フィルタ', () => {
   });
 });
 
+describe('SObjectBrowser — 一括MD出力', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      sobjects: [
+        makeSObjectSummary({ name: 'Account', label: 'アカウント' }),
+        makeSObjectSummary({ name: 'Contact', label: '取引先責任者' }),
+      ],
+    });
+  });
+
+  const clickMdFolderButton = async () => {
+    await waitFor(() => {
+      expect(screen.getByLabelText('フィルタ結果をMarkdown定義書として一括出力')).toBeInTheDocument();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('フィルタ結果をMarkdown定義書として一括出力'));
+    });
+  };
+
+  it('一部失敗した場合はトーストで通知する', async () => {
+    (window.sfx.listSObjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (window.sfx.exportObjectDefinitionsMdFolder as ReturnType<typeof vi.fn>).mockResolvedValue({
+      succeeded: 1,
+      total: 2,
+    });
+
+    await act(async () => {
+      renderBrowser();
+    });
+    await clickMdFolderButton();
+
+    await waitFor(() => {
+      expect(screen.getByText(/1\/2件のみ成功/)).toBeInTheDocument();
+    });
+  });
+
+  it('全件成功した場合はトーストを出さない', async () => {
+    (window.sfx.listSObjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (window.sfx.exportObjectDefinitionsMdFolder as ReturnType<typeof vi.fn>).mockResolvedValue({
+      succeeded: 2,
+      total: 2,
+    });
+
+    await act(async () => {
+      renderBrowser();
+    });
+    await clickMdFolderButton();
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('ダイアログをキャンセル (null) した場合はトーストを出さない', async () => {
+    (window.sfx.listSObjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (window.sfx.exportObjectDefinitionsMdFolder as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+    await act(async () => {
+      renderBrowser();
+    });
+    await clickMdFolderButton();
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('例外発生時はトーストで通知する', async () => {
+    (window.sfx.listSObjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (window.sfx.exportObjectDefinitionsMdFolder as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new Error('disk full'),
+    );
+
+    await act(async () => {
+      renderBrowser();
+    });
+    await clickMdFolderButton();
+
+    await waitFor(() => {
+      expect(screen.getByText(/一括MD定義書出力に失敗しました.*disk full/)).toBeInTheDocument();
+    });
+  });
+});
+
 describe('SObjectBrowser — 定義書出力エラー', () => {
   it('exportObjectDefinition 失敗で alert 表示', async () => {
     const sobj = makeSObjectSummary({ name: 'Account', label: 'アカウント' });

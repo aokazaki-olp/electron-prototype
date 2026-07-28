@@ -285,7 +285,7 @@ export const exportObjectDefinition = async (
 const SOBJECT_NAME_PATTERN = /^[A-Za-z0-9_]+$/;
 
 /** Markdown テーブルセル内の `|` と改行をエスケープ */
-const escMd = (v: unknown): string => {
+const escapeMdCell = (v: unknown): string => {
   if (v == null || v === '') {
     return '';
   }
@@ -300,8 +300,8 @@ const buildObjectMdLines = (describe: SObjectDescribe): string[] => {
   lines.push('| 項目 | 値 |');
   lines.push('|---|---|');
   lines.push(`| API名 | \`${describe.name}\` |`);
-  lines.push(`| ラベル | ${escMd(describe.label)} |`);
-  lines.push(`| ラベル(複数) | ${escMd(describe.labelPlural)} |`);
+  lines.push(`| ラベル | ${escapeMdCell(describe.label)} |`);
+  lines.push(`| ラベル(複数) | ${escapeMdCell(describe.labelPlural)} |`);
   lines.push(`| フィールド数 | ${describe.fields.length} |`);
   lines.push('');
   lines.push('## フィールド定義');
@@ -316,7 +316,7 @@ const buildObjectMdLines = (describe: SObjectDescribe): string[] => {
       .join(', ');
 
     lines.push(
-      `| ${escMd(field.name)} | ${escMd(field.label)} | ${escMd(TYPE_JA[field.type] ?? field.type)} | ${field.length ?? ''} | ${field.nillable ? '' : '●'} | ${field.unique ? '●' : ''} | ${field.externalId ? '●' : ''} | ${field.custom ? '●' : ''} | ${escMd(field.referenceTo.join(', '))} | ${escMd(picklistStr)} |`,
+      `| ${escapeMdCell(field.name)} | ${escapeMdCell(field.label)} | ${escapeMdCell(TYPE_JA[field.type] ?? field.type)} | ${field.length ?? ''} | ${field.nillable ? '' : '●'} | ${field.unique ? '●' : ''} | ${field.externalId ? '●' : ''} | ${field.custom ? '●' : ''} | ${escapeMdCell(field.referenceTo.join(', '))} | ${escapeMdCell(picklistStr)} |`,
     );
   }
 
@@ -384,6 +384,9 @@ export const exportObjectDefinitionsMdFolder = async (
   const tocRows: string[] = [];
   let succeeded = 0;
 
+  // describeObject を Promise.all で並列化せず逐次実行する。多数のオブジェクトを
+  // 一括選択した場合に describe API を同時多重発行すると Salesforce のレート制限
+  // (REQUEST_LIMIT_EXCEEDED 等) に触れやすいため、1件ずつ確実に処理する方針とする。
   for (let i = 0; i < objectNames.length; i++) {
     const objectName = objectNames[i];
     if (!objectName) {
@@ -399,7 +402,7 @@ export const exportObjectDefinitionsMdFolder = async (
       const describe = await describeObject(profileId, objectName);
       await writeFile(join(outDir, `${objectName}.md`), buildObjectMdLines(describe).join('\n'), 'utf-8');
       tocRows.push(
-        `| [${escMd(describe.name)}](./${describe.name}.md) | ${escMd(describe.label)} | ${describe.fields.length} | ${describe.custom ? '●' : ''} |`,
+        `| [${escapeMdCell(describe.name)}](./${describe.name}.md) | ${escapeMdCell(describe.label)} | ${describe.fields.length} | ${describe.custom ? '●' : ''} |`,
       );
       succeeded++;
       log.info(`[Export] MD定義書 ${i + 1}/${total}: ${objectName}`);

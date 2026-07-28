@@ -135,7 +135,7 @@ const SObjectBrowserInner = (): JSX.Element => {
       return;
     }
     try {
-      const result = await window.sfx.exportObjectsMdFolder(filtered.map(o => o.name));
+      const result = await window.sfx.exportObjectDefinitionsMdFolder(filtered.map(o => o.name));
       if (result && result.succeeded < result.total) {
         const msg = `一括MD定義書出力: ${result.succeeded}/${result.total}件のみ成功しました`;
         window.sfx.rendererLog('error', msg);

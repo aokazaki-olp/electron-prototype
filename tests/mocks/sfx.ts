@@ -56,7 +56,7 @@ export const makeMockSfx = (): SalesforceExplorerApi => ({
   exportObjectDefinition: vi.fn().mockResolvedValue(undefined),
   exportObjectDefinitionMarkdown: vi.fn().mockResolvedValue(undefined),
   exportObjectDefinitionJson: vi.fn().mockResolvedValue(undefined),
-  exportObjectsMdFolder: vi.fn().mockResolvedValue(null),
+  exportObjectDefinitionsMdFolder: vi.fn().mockResolvedValue(null),
   exportLogFile: vi.fn().mockResolvedValue(undefined),
 
   getRecentLogs: vi.fn().mockResolvedValue([]),

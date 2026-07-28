@@ -524,7 +524,7 @@ const registerIpcHandlers = (): void => {
     return exportObjectDefinitionJson(requireCurrentProfile(), objectName);
   });
 
-  handle(IPC.EXPORT_OBJECTS_MD_FOLDER, async (objectNames) => {
+  handle(IPC.EXPORT_OBJECT_DEFINITIONS_MD_FOLDER, async (objectNames) => {
     assertStringArray(objectNames);
     return exportObjectDefinitionsMdFolder(requireCurrentProfile(), objectNames);
   });

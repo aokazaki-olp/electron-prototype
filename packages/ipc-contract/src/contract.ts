@@ -103,6 +103,11 @@ export interface QueryResult {
   fetchedCount: number;
 }
 
+export interface ObjectDefinitionsMdFolderResult {
+  succeeded: number;
+  total: number;
+}
+
 // ============================================================================
 // SOQL タブ永続化（CODING_RULES §7.3 遵守: renderer で localStorage を使わない）
 // ============================================================================
@@ -215,7 +220,7 @@ export const IPC = {
   EXPORT_OBJECT_DEFINITION: 'export:object-definition',
   EXPORT_OBJECT_DEFINITION_MARKDOWN: 'export:object-definition-markdown',
   EXPORT_OBJECT_DEFINITION_JSON: 'export:object-definition-json',
-  EXPORT_OBJECTS_MD_FOLDER: 'export:objects-md-folder',
+  EXPORT_OBJECT_DEFINITIONS_MD_FOLDER: 'export:object-definitions-md-folder',
   EXPORT_LOG_FILE: 'export:log-file',
 
   // ログ（push型 main → renderer）
@@ -282,7 +287,7 @@ export interface SalesforceExplorerApi {
    * フォルダを選択し、objectNames の定義書を個別 MD ファイルで出力。README.md に TOC を生成する。
    * ダイアログをキャンセルした場合は null を返す。
    */
-  exportObjectsMdFolder(objectNames: string[]): Promise<{ succeeded: number; total: number } | null>;
+  exportObjectDefinitionsMdFolder(objectNames: string[]): Promise<ObjectDefinitionsMdFolderResult | null>;
   /** 現在の LogViewer 内容を .log ファイルに保存する。ユーザーが dialog をキャンセルした場合は何もせず返る。 */
   exportLogFile(logs: LogEntry[]): Promise<void>;
 
@@ -311,7 +316,7 @@ export type LiteApi = Pick<SalesforceExplorerApi,
   | 'exportObjectDefinition'
   | 'exportObjectDefinitionMarkdown'
   | 'exportObjectDefinitionJson'
-  | 'exportObjectsMdFolder'
+  | 'exportObjectDefinitionsMdFolder'
   | 'getRecentLogs'
   | 'onLogEntry'
   | 'rendererLog'
@@ -332,13 +337,13 @@ export const EXPECTED_API_KEYS = {
     'saveSoqlFile', 'openSoqlFile',
     'loadTabs', 'saveTabs',
     'loadColumnSizes', 'saveColumnSizes',
-    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportObjectsMdFolder', 'exportLogFile',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportObjectDefinitionsMdFolder', 'exportLogFile',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
   compass: [
     'loadSettings', 'loadProfiles', 'getAuthState',
     'listSObjects', 'describeObject', 'query',
-    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportObjectsMdFolder',
+    'exportCsv', 'exportQueryExcel', 'exportObjectDefinition', 'exportObjectDefinitionMarkdown', 'exportObjectDefinitionJson', 'exportObjectDefinitionsMdFolder',
     'getRecentLogs', 'onLogEntry', 'rendererLog',
   ],
 } as const satisfies {
