@@ -31,19 +31,25 @@ test.describe('キーボードショートカット', () => {
     await expect(main.header).toBeVisible({ timeout: 15_000 });
     await expect(main.soqlEditorContent).toBeVisible({ timeout: 5_000 });
 
-    // SoqlEditor の親 div で onKeyDown を listen。
+    const soqlBefore = await main.soqlEditorContent.textContent();
+
+    // CodeMirror (CM6) は自身の contentEditable ルート (.cm-content) に直接
+    // keydown リスナーを持つ。親 div にイベントを dispatch しても CM6 自身の
+    // リスナーは（子孫要素なので）発火せず、改行が挿入されてしまう不具合を
+    // 検出できなかった（過去バージョンのこのテストの問題点）。
+    // 実際に CM6 が処理する要素 (.cm-content) に対して直接 dispatch する。
     // sandbox renderer では keyboard.press が CDP 経由でクラッシュするため、
-    // page 内 JS で KeyboardEvent を該当 div に dispatch する。
+    // page 内 JS で KeyboardEvent を dispatch する。
     await window.evaluate(() => {
-      // .cm-content から onKeyDown を持つ親 div を探す
       const editor = document.querySelector('.cm-content');
-      const handler = editor?.closest('div.flex-1.overflow-hidden');
-      handler?.dispatchEvent(new KeyboardEvent('keydown', {
+      editor?.dispatchEvent(new KeyboardEvent('keydown', {
         key: 'Enter', ctrlKey: true, bubbles: true,
       }));
     });
 
     await expect(window.locator('text=/1件取得/')).toBeVisible({ timeout: 5_000 });
+    // Ctrl+Enter で改行がエディタ本文に混入しないこと（報告された不具合の回帰確認）
+    await expect(main.soqlEditorContent).toHaveText(soqlBefore ?? '');
   });
 
   test('Esc で Settings モーダルが閉じる', async ({ window }) => {
