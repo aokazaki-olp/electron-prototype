@@ -4,20 +4,11 @@ import { useShallow } from 'zustand/react/shallow';
 import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { autocompletion } from '@codemirror/autocomplete';
+import { EditorView } from '@codemirror/view';
 import { Play, AlertCircle, Plus, X, Save, FolderOpen } from 'lucide-react';
 import { useAppStore } from '../store.js';
 import { soqlCompletionSource } from './soqlCompletion.js';
 
-// モジュールスコープで固定: レンダーのたびに新しいオブジェクトが生まれると
-// @uiw/react-codemirror が StateEffect.reconfigure を毎回実行してしまいフリーズする
-const CM_EXTENSIONS = [
-  sql(),
-  autocompletion({
-    override: [soqlCompletionSource],
-    // SF オブジェクト名・フィールド名は大文字小文字混在のため insensitive にしておく
-    activateOnTyping: true,
-  }),
-];
 const CM_BASIC_SETUP = { lineNumbers: true, foldGutter: false } as const;
 
 interface Props {
@@ -111,6 +102,50 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
     }
   };
 
+  // handleSaveFile の最新版を ref で保持する（runQueryRef と同じ理由）。
+  const handleSaveFileRef = useRef(handleSaveFile);
+  useEffect(() => {
+    handleSaveFileRef.current = handleSaveFile;
+  });
+
+  // CodeMirror (CM6) は自身の DOM 要素に直接 keydown リスナーを持っており、
+  // React の onKeyDown（バブリングフェーズ）より先に発火する。そのため親要素の
+  // onKeyDown で e.preventDefault() しても、Ctrl+Enter で改行が入力された後になり
+  // 手遅れだった。CM6 自身の拡張機構 (EditorView.domEventHandlers) 経由で
+  // キーを横取りすることで、改行挿入より前に確実にハンドリングする。
+  //
+  // extensions 配列は毎レンダーで新しい参照になると @uiw/react-codemirror が
+  // StateEffect.reconfigure を実行してフリーズするため、useState の遅延初期化で
+  // マウント時に一度だけ生成し、以後は同じ参照を使い続ける。ref 経由で常に
+  // 最新の runQuery/handleSaveFile を呼べるので、依存配列を気にする必要はない。
+  const [cmExtensions] = useState(() => [
+    sql(),
+    autocompletion({
+      override: [soqlCompletionSource],
+      // SF オブジェクト名・フィールド名は大文字小文字混在のため insensitive にしておく
+      activateOnTyping: true,
+    }),
+    EditorView.domEventHandlers({
+      keydown: (event) => {
+        // 日本語 IME composition 中の Enter で SOQL 実行が暴発するのを防ぐ
+        if (event.isComposing) {
+          return false;
+        }
+        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+          event.preventDefault();
+          runQueryRef.current();
+          return true;
+        }
+        if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+          event.preventDefault();
+          void handleSaveFileRef.current();
+          return true;
+        }
+        return false;
+      },
+    }),
+  ]);
+
   const handleOpenFile = async () => {
     try {
       const file = await window.sfx.openSoqlFile();
@@ -141,21 +176,6 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
       renameTab(editingTabId, editingName.trim());
     }
     setEditingTabId(null);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    // 日本語 IME composition 中の Enter で SOQL 実行が暴発するのを防ぐ
-    if (e.nativeEvent.isComposing) {
-      return;
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      runQuery();
-    }
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      handleSaveFile();
-    }
   };
 
   return (
@@ -234,11 +254,11 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
 
       {/* エディタ */}
       {/* key を外して unmount/remount を抑止し、CodeMirror インスタンスを再利用する */}
-      <div className="flex-1 overflow-hidden" onKeyDown={handleKeyDown}>
+      <div className="flex-1 overflow-hidden">
         <CodeMirror
           value={soql}
           onChange={setSoql}
-          extensions={CM_EXTENSIONS}
+          extensions={cmExtensions}
           height="100%"
           theme={isDark ? 'dark' : 'light'}
           basicSetup={CM_BASIC_SETUP}
