@@ -113,6 +113,9 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   // onKeyDown で e.preventDefault() しても、Ctrl+Enter で改行が入力された後になり
   // 手遅れだった。CM6 自身の拡張機構 (EditorView.domEventHandlers) 経由で
   // キーを横取りすることで、改行挿入より前に確実にハンドリングする。
+  // keymap.of([{key: 'Mod-Enter', ...}]) でも同様のことはできるが、basicSetup の
+  // defaultKeymap との登録順序・Prec 優先度に依存せず確実に先着させたいため、
+  // より低レベルな domEventHandlers を採用する。
   //
   // extensions 配列は毎レンダーで新しい参照になると @uiw/react-codemirror が
   // StateEffect.reconfigure を実行してフリーズするため、useState の遅延初期化で
@@ -133,11 +136,16 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
         }
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
           event.preventDefault();
-          runQueryRef.current();
+          // useGlobalKeybindings.ts は document レベルで Ctrl/Cmd 修飾キーを監視しており
+          // （現状 Enter/s は未使用だが将来のコマンドパレット等で追加されうる）、
+          // 二重発火を避けるためこの時点で伝播を止める。
+          event.stopPropagation();
+          void runQueryRef.current();
           return true;
         }
         if ((event.ctrlKey || event.metaKey) && event.key === 's') {
           event.preventDefault();
+          event.stopPropagation();
           void handleSaveFileRef.current();
           return true;
         }
