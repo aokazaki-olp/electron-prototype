@@ -121,6 +121,10 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   // 実機 e2e テストで発覚した（コンポーネントテストは CodeMirror をモックしており
   // 検出できなかった）。Prec.highest() で明示的に最優先にすることで解決する。
   //
+  // 注意: このハンドラは他の全 extension より先に評価される。今後キー判定の分岐を
+  // 追加する場合、該当しないキーでは必ず false を返し、素通りさせること（でないと
+  // autocompletion 等の他 extension のキーバインドを意図せず奪ってしまう）。
+  //
   // extensions 配列は毎レンダーで新しい参照になると @uiw/react-codemirror が
   // StateEffect.reconfigure を実行してフリーズするため、useState の遅延初期化で
   // マウント時に一度だけ生成し、以後は同じ参照を使い続ける。ref 経由で常に
