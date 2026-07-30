@@ -5,6 +5,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { sql } from '@codemirror/lang-sql';
 import { autocompletion } from '@codemirror/autocomplete';
 import { EditorView } from '@codemirror/view';
+import { Prec } from '@codemirror/state';
 import { Play, AlertCircle, Plus, X, Save, FolderOpen } from 'lucide-react';
 import { useAppStore } from '../store.js';
 import { soqlCompletionSource } from './soqlCompletion.js';
@@ -113,9 +114,12 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
   // onKeyDown で e.preventDefault() しても、Ctrl+Enter で改行が入力された後になり
   // 手遅れだった。CM6 自身の拡張機構 (EditorView.domEventHandlers) 経由で
   // キーを横取りすることで、改行挿入より前に確実にハンドリングする。
-  // keymap.of([{key: 'Mod-Enter', ...}]) でも同様のことはできるが、basicSetup の
-  // defaultKeymap との登録順序・Prec 優先度に依存せず確実に先着させたいため、
-  // より低レベルな domEventHandlers を採用する。
+  //
+  // 重要: domEventHandlers を extensions 配列に加えるだけでは優先度は保証されない。
+  // autocompletion() が内部で登録する keymap（Enter で補完確定・却下する処理等）が
+  // 先に Enter イベントを消費してしまい、Ctrl+Enter が一切発火しない不具合が
+  // 実機 e2e テストで発覚した（コンポーネントテストは CodeMirror をモックしており
+  // 検出できなかった）。Prec.highest() で明示的に最優先にすることで解決する。
   //
   // extensions 配列は毎レンダーで新しい参照になると @uiw/react-codemirror が
   // StateEffect.reconfigure を実行してフリーズするため、useState の遅延初期化で
@@ -128,7 +132,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
       // SF オブジェクト名・フィールド名は大文字小文字混在のため insensitive にしておく
       activateOnTyping: true,
     }),
-    EditorView.domEventHandlers({
+    Prec.highest(EditorView.domEventHandlers({
       keydown: (event) => {
         // 日本語 IME composition 中の Enter で SOQL 実行が暴発するのを防ぐ
         if (event.isComposing) {
@@ -151,7 +155,7 @@ const SoqlEditorInner = ({ settings }: Props): JSX.Element => {
         }
         return false;
       },
-    }),
+    })),
   ]);
 
   const handleOpenFile = async () => {
