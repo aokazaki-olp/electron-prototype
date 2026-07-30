@@ -16,10 +16,16 @@
     "@app/ipc-contract": "*",
     "@app/libs": "*",
     "@app/main-core": "*",
-    "react-resizable-panels": "^4.11.2"
-  },
-  "devDependencies": {
     "@codemirror/autocomplete": "^6.20.2",
-    "@codemirror/view": "^6"
+    "@codemirror/lang-sql": "^6",
+    "@codemirror/view": "^6",
+    "@tanstack/react-table": "^8",
+    "@tanstack/react-virtual": "^3.13.25",
+    "@uiw/react-codemirror": "^4",
+    "lucide-react": "^0",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-resizable-panels": "^4.11.2",
+    "zustand": "^5"
   }
 }
